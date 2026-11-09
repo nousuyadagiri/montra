@@ -1,0 +1,59 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { Platform, Alert } from 'react-native';
+import { Transaction } from '../types/database';
+
+export async function exportTransactionsToCSV(transactions: Transaction[]): Promise<void> {
+  if (transactions.length === 0) {
+    Alert.alert('No Transactions', 'There are no transactions available to export.');
+    return;
+  }
+
+  const headers = ['Date', 'Title', 'Type', 'Category', 'Account', 'Amount', 'Payment Method', 'Notes'];
+  const rows = transactions.map((t) => [
+    `"${t.date}"`,
+    `"${t.title.replace(/"/g, '""')}"`,
+    `"${t.type}"`,
+    `"${t.category?.name || 'Uncategorized'}"`,
+    `"${t.account?.name || 'Default'}"`,
+    t.amount.toString(),
+    `"${t.payment_method || ''}"`,
+    `"${(t.notes || '').replace(/"/g, '""')}"`,
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+
+  try {
+    if (Platform.OS === 'web') {
+      // Browser download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `montra_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    const docDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || '';
+    const filename = `${docDir}montra_transactions_${Date.now()}.csv`;
+    await FileSystem.writeAsStringAsync(filename, csvContent, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(filename, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Export Montra Transactions',
+        UTI: 'public.comma-separated-values-text',
+      });
+    } else {
+      Alert.alert('Exported', `File saved to ${filename}`);
+    }
+  } catch (error: any) {
+    Alert.alert('Export Failed', error?.message || 'Failed to export CSV.');
+  }
+}
