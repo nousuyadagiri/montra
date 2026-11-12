@@ -3,8 +3,14 @@ import { getErrorMessage } from '../src/utils/errors';
 import { toast, useToastStore } from '../src/store/toastStore';
 
 describe('Theme palettes', () => {
-  it('provides 9 curated themes with both light and dark tokens', () => {
-    expect(THEME_OPTIONS.length).toBeGreaterThanOrEqual(8);
+  it('provides 9 curated minimalist themes including Electric Indigo, Oceanic Slate, and Aurora Teal with light and dark tokens', () => {
+    expect(THEME_OPTIONS).toHaveLength(9);
+    const names = THEME_OPTIONS.map((o) => o.name);
+    expect(names).toEqual(
+      expect.arrayContaining(['Electric Indigo', 'Oceanic Slate', 'Aurora Teal'])
+    );
+    expect(new Set(THEME_OPTIONS.map((o) => o.id)).size).toBe(THEME_OPTIONS.length);
+
     for (const option of THEME_OPTIONS) {
       expect(THEMES[option.id]).toBeDefined();
       const light = getThemeColors(option.id, false);
@@ -13,6 +19,8 @@ describe('Theme palettes', () => {
       expect(dark.background).toBeTruthy();
       expect(light.primary).toBeTruthy();
       expect(dark.primary).toBeTruthy();
+      expect(light.onPrimary).toBeTruthy();
+      expect(dark.onPrimary).toBeTruthy();
     }
   });
 });

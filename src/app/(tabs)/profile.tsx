@@ -58,7 +58,8 @@ const APPEARANCE_MODES: { label: string; value: ThemeMode; Icon: typeof Sun }[] 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, mode, themePalette, setMode, setThemePalette } = useAppTheme();
+  const { colors, isDark, mode, themePalette, setMode, setThemePalette } = useAppTheme();
+  const activeThemeOption = THEME_OPTIONS.find((t) => t.id === themePalette) ?? THEME_OPTIONS[0];
 
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
@@ -340,9 +341,19 @@ export default function ProfileScreen() {
             })}
           </View>
 
+          <View style={styles.paletteHeaderRow}>
+            <Text variant="xs" weight="semibold" color="secondary" style={styles.paletteSubLabel}>
+              MINIMALIST PALETTES
+            </Text>
+            <Text variant="xs" color="tertiary" numberOfLines={1} style={styles.paletteDescText}>
+              {activeThemeOption.description}
+            </Text>
+          </View>
+
           <View style={styles.paletteGrid}>
             {THEME_OPTIONS.map((opt) => {
               const selected = themePalette === opt.id;
+              const surfaceHint = isDark ? opt.previewBgDark : opt.previewBgLight;
               return (
                 <TouchableOpacity
                   key={opt.id}
@@ -352,12 +363,19 @@ export default function ProfileScreen() {
                     styles.palettePill,
                     {
                       backgroundColor: selected ? colors.primaryMuted : colors.elevatedSurface,
-                      borderColor: selected ? colors.primary : 'transparent',
+                      borderColor: selected ? colors.primary : colors.borderLight,
                     },
                   ]}
                 >
-                  <View style={[styles.swatchDot, { backgroundColor: opt.previewColor }]}>
-                    <View style={[styles.swatchInner, { backgroundColor: opt.accentColor }]} />
+                  <View
+                    style={[
+                      styles.swatchRing,
+                      { backgroundColor: surfaceHint, borderColor: opt.previewColor },
+                    ]}
+                  >
+                    <View style={[styles.swatchDot, { backgroundColor: opt.previewColor }]}>
+                      <View style={[styles.swatchInner, { backgroundColor: opt.accentColor }]} />
+                    </View>
                   </View>
                   <Text
                     variant="xs"
@@ -751,6 +769,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: BorderRadius.md,
   },
+  paletteHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 2,
+    marginBottom: 8,
+  },
+  paletteSubLabel: {
+    fontSize: 10,
+    letterSpacing: 0.9,
+  },
+  paletteDescText: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 11,
+  },
   paletteGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -766,17 +801,25 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
+  swatchRing: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   swatchDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
   },
   swatchInner: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   menuRow: {
     flexDirection: 'row',

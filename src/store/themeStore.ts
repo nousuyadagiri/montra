@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { Appearance, ColorSchemeName } from 'react-native';
-import { getThemeColors, ThemeColors, ThemeName } from '../theme/colors';
+import { getThemeColors, THEME_OPTIONS, ThemeColors, ThemeName } from '../theme/colors';
 
 export type ThemeMode = 'system' | 'dark' | 'light';
 
@@ -79,17 +79,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       let savedPalette = (await SecureStore.getItemAsync(THEME_PALETTE_KEY)) as ThemeName | null;
 
       const validModes: ThemeMode[] = ['dark', 'light', 'system'];
-      const validPalettes: ThemeName[] = [
-        'midnight-indigo',
-        'warm-sand',
-        'slate-blue',
-        'forest-sage',
-        'royal-violet',
-        'crimson-rose',
-        'aurora-teal',
-        'sunset-gold',
-        'nordic-mono',
-      ];
+      const validPalettes: ThemeName[] = THEME_OPTIONS.map((option) => option.id);
 
       const activeMode = savedMode && validModes.includes(savedMode) ? savedMode : 'system';
       const activePalette = savedPalette && validPalettes.includes(savedPalette) ? savedPalette : 'midnight-indigo';
