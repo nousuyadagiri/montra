@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,68 +7,143 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { useSyncStore } from '../../store/syncStore';
 import { splitService, GroupDetailsData } from '../../services/splitService';
 import {
   Text,
-  Heading,
   CurrencyText,
   Card,
-  Badge,
   Button,
+  Input,
   Header,
   LoadingState,
   EmptyState,
+  ErrorState,
 } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
+import { Spacing } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
 import {
-  Users,
-  Plus,
   ArrowRight,
   HandCoins,
   Receipt,
   Trash2,
-  ArrowDownLeft,
-  ArrowUpRight,
-  ChevronRight,
+  Pencil,
+  UserPlus,
+  Check,
+  X,
 } from 'lucide-react-native';
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
-  const profile = useAuthStore((s) => s.profile);
+  const syncTick = useSyncStore((s) => s.syncTick);
+
+  const demoGroups = useDemoStore((s) => s.demoGroups);
+  const demoGroupExpenses = useDemoStore((s) => s.demoGroupExpenses);
+  const demoGroupSettlements = useDemoStore((s) => s.demoGroupSettlements);
+  const getDemoGroupDetails = useDemoStore((s) => s.getDemoGroupDetails);
+  const addDemoGroupMember = useDemoStore((s) => s.addDemoGroupMember);
+  const deleteDemoGroup = useDemoStore((s) => s.deleteDemoGroup);
+  const deleteDemoGroupExpense = useDemoStore((s) => s.deleteDemoGroupExpense);
+  const deleteDemoSettlement = useDemoStore((s) => s.deleteDemoSettlement);
+
+  const isDemo = !user || (id?.startsWith('demo-') ?? false);
 
   const [data, setData] = useState<GroupDetailsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  // Inline Add Member state
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
 
   const fetchDetails = useCallback(async () => {
-    if (!id || !user) return;
+    if (!id) {
+      setLoading(false);
+      setLoadError('Group ID is missing.');
+      return;
+    }
+    setLoadError(null);
+    if (isDemo) {
+      const res = getDemoGroupDetails(id);
+      hasLoadedRef.current = Boolean(res);
+      setData(res);
+      if (!res) setLoadError('This demo group could not be found.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    if (!user) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const res = await splitService.getGroupDetails(id, user.id);
+      hasLoadedRef.current = true;
       setData(res);
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to load group details.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Failed to load group details.');
+      setLoadError(msg);
+      if (hasLoadedRef.current) toast.error(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id, user]);
+  }, [id, user, isDemo, getDemoGroupDetails]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDetails();
+    }, [fetchDetails])
+  );
 
   useEffect(() => {
-    fetchDetails();
-  }, [fetchDetails]);
+    if (syncTick > 0 || isDemo) {
+      fetchDetails();
+    }
+  }, [syncTick, isDemo, demoGroups, demoGroupExpenses, demoGroupSettlements, fetchDetails]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchDetails();
+  };
+
+  const handleAddMember = async () => {
+    if (!id || !newMemberName.trim()) {
+      toast.warning('Please enter a member name.', 'Name Required');
+      return;
+    }
+    try {
+      setAddingMember(true);
+      if (isDemo) {
+        addDemoGroupMember(id, newMemberName.trim());
+      } else {
+        await splitService.addMember(id, newMemberName.trim());
+      }
+      toast.success(`Added ${newMemberName.trim()} to group.`);
+      setNewMemberName('');
+      setShowAddMember(false);
+      await fetchDetails();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to add member.'));
+    } finally {
+      setAddingMember(false);
+    }
   };
 
   const handleDeleteGroup = () => {
@@ -83,15 +158,68 @@ export default function GroupDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await splitService.deleteGroup(id);
+              if (isDemo) {
+                deleteDemoGroup(id);
+              } else {
+                await splitService.deleteGroup(id);
+              }
+              toast.success('Group deleted.');
               router.back();
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to delete group.');
+            } catch (err: unknown) {
+              toast.error(getErrorMessage(err, 'Failed to delete group.'));
             }
           },
         },
       ]
     );
+  };
+
+  const handleDeleteExpense = (expenseId: string, title: string) => {
+    if (!id) return;
+    Alert.alert('Delete Expense', `Delete "${title}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (isDemo) {
+              deleteDemoGroupExpense(id, expenseId);
+            } else {
+              await splitService.deleteGroupExpense(expenseId);
+            }
+            toast.success(`Expense "${title}" removed.`);
+            await fetchDetails();
+          } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Failed to delete expense.'));
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteSettlement = (settlementId: string) => {
+    if (!id) return;
+    Alert.alert('Delete Settlement', 'Remove this settlement record?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (isDemo) {
+              deleteDemoSettlement(id, settlementId);
+            } else {
+              await splitService.deleteSettlement(settlementId);
+            }
+            toast.success('Settlement record removed.');
+            await fetchDetails();
+          } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Failed to remove settlement.'));
+          }
+        },
+      },
+    ]);
   };
 
   if (loading && !refreshing) {
@@ -103,9 +231,25 @@ export default function GroupDetailScreen() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header title="Group Details" showBack />
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <ErrorState
+            title="Group Unavailable"
+            message={loadError || 'Unable to load this group right now.'}
+            onRetry={() => {
+              setLoading(true);
+              fetchDetails();
+            }}
+          />
+        </View>
+      </View>
+    );
+  }
 
-  const { group, totalExpenses, yourNetBalance, memberBalances, simplifiedDebts, expenses } = data;
+  const { group, totalExpenses, yourNetBalance, memberBalances, simplifiedDebts, expenses, settlements, members } = data;
   const isOwed = yourNetBalance > 0;
   const isOwing = yourNetBalance < 0;
 
@@ -113,12 +257,25 @@ export default function GroupDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
         title={group.name}
-        subtitle={`${group.category} • ${data.members.length} members`}
+        subtitle={`${group.category} • ${members.length} members`}
         showBack
         rightAction={
-          <TouchableOpacity onPress={handleDeleteGroup} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Trash2 size={20} color={colors.error} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/split/create-group', params: { editGroupId: group.id } })}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Edit group"
+            >
+              <Pencil size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDeleteGroup}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Delete group"
+            >
+              <Trash2 size={20} color={colors.error} />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -228,11 +385,52 @@ export default function GroupDetailScreen() {
           </View>
         ) : null}
 
-        {/* Member Balances */}
+        {/* Member Balances & Add Member */}
         <View style={styles.section}>
-          <Text variant="sm" weight="semibold" color="secondary" style={styles.sectionTitle}>
-            MEMBER BALANCES
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text variant="sm" weight="semibold" color="secondary" style={styles.sectionTitle}>
+              MEMBER BALANCES
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowAddMember(!showAddMember)}
+              style={styles.addMemberLink}
+            >
+              <UserPlus size={14} color={colors.primary} />
+              <Text variant="xs" color="primary" weight="bold">
+                {showAddMember ? 'Cancel' : 'Add Member'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showAddMember ? (
+            <Card elevated style={styles.addMemberCard}>
+              <View style={styles.addMemberInputRow}>
+                <Input
+                  placeholder="Member name (e.g. Kiran)"
+                  value={newMemberName}
+                  onChangeText={setNewMemberName}
+                  containerStyle={{ flex: 1, marginBottom: 0 }}
+                />
+                <TouchableOpacity
+                  onPress={handleAddMember}
+                  disabled={addingMember}
+                  style={[styles.confirmMemBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Check size={16} color={colors.onPrimary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAddMember(false);
+                    setNewMemberName('');
+                  }}
+                  style={[styles.confirmMemBtn, { backgroundColor: colors.elevatedSurface }]}
+                >
+                  <X size={16} color={colors.secondaryText} />
+                </TouchableOpacity>
+              </View>
+            </Card>
+          ) : null}
+
           <Card elevated style={styles.membersCard}>
             {memberBalances.map((mb) => {
               const memOwed = mb.netBalance > 0;
@@ -292,17 +490,83 @@ export default function GroupDetailScreen() {
                       {exp.split_type.toUpperCase()}
                     </Text>
                   </View>
-                  <CurrencyText
-                    amount={exp.amount}
-                    currency={group.currency}
-                    variant="sm"
-                    weight="bold"
-                  />
+                  <View style={styles.expenseRightCol}>
+                    <CurrencyText
+                      amount={exp.amount}
+                      currency={group.currency}
+                      variant="sm"
+                      weight="bold"
+                    />
+                    <View style={styles.expenseActions}>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push({
+                            pathname: '/split/add-expense',
+                            params: { groupId: group.id, editExpenseId: exp.id },
+                          })
+                        }
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Pencil size={14} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteExpense(exp.id, exp.title)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Trash2 size={14} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
               </Card>
             ))
           )}
         </View>
+
+        {/* Settlement History */}
+        {settlements.length > 0 ? (
+          <View style={styles.section}>
+            <Text variant="sm" weight="semibold" color="secondary" style={styles.sectionTitle}>
+              SETTLEMENT HISTORY
+            </Text>
+            {settlements.map((s) => {
+              const payerName =
+                members.find((m) => m.id === s.payer_id)?.member_name || 'Member';
+              const payeeName =
+                members.find((m) => m.id === s.payee_id)?.member_name || 'Member';
+              return (
+                <Card key={s.id} style={styles.expenseCard}>
+                  <View style={styles.expenseRow}>
+                    <View style={[styles.expenseIcon, { backgroundColor: colors.successMuted }]}>
+                      <HandCoins size={18} color={colors.positive} />
+                    </View>
+                    <View style={styles.expenseDetails}>
+                      <Text variant="sm" weight="bold">
+                        {payerName} → {payeeName}
+                      </Text>
+                      <Text variant="xs" color="secondary">
+                        {s.payment_method || 'UPI'} {s.notes ? `• ${s.notes}` : ''}
+                      </Text>
+                    </View>
+                    <CurrencyText
+                      amount={s.amount}
+                      currency={group.currency}
+                      variant="sm"
+                      weight="bold"
+                      style={{ color: colors.positive, marginRight: Spacing.sm }}
+                    />
+                    <TouchableOpacity
+                      onPress={() => handleDeleteSettlement(s.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Trash2 size={15} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </Card>
+              );
+            })}
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -379,6 +643,43 @@ const styles = StyleSheet.create({
   expenseDetails: {
     flex: 1,
     gap: 2,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  addMemberLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: Spacing.xs,
+    paddingHorizontal: 4,
+  },
+  addMemberCard: {
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  addMemberInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  confirmMemBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expenseRightCol: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  expenseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });
 

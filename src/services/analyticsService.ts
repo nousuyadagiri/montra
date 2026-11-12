@@ -39,9 +39,11 @@ export const analyticsService = {
     let endDate: string;
 
     if (period === 'week') {
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      const start = new Date(now.setDate(diff));
+      const base = new Date(now);
+      const day = base.getDay();
+      const diff = base.getDate() - day + (day === 0 ? -6 : 1);
+      const start = new Date(base);
+      start.setDate(diff);
       startDate = start.toISOString().split('T')[0];
       endDate = new Date().toISOString().split('T')[0];
     } else if (period === 'year') {
@@ -55,7 +57,7 @@ export const analyticsService = {
 
     const { data: txns, error } = await supabase
       .from('transactions')
-      .select('*, category:transaction_categories(*), account:accounts(*)')
+      .select('*, category:transaction_categories(*), account:accounts!account_id(*)')
       .eq('user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate)
@@ -112,34 +114,42 @@ export const analyticsService = {
       };
     });
 
-    // 6-month comparison
+    // 6-month comparison in a single batch query
     const monthlyComparison: { month: string; income: number; expense: number; savings: number }[] = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const rangeStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().split('T')[0];
+
+    const { data: histTxns } = await supabase
+      .from('transactions')
+      .select('type, amount, date')
+      .eq('user_id', userId)
+      .gte('date', rangeStart);
+
+    const buckets: Record<string, { income: number; expense: number }> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      buckets[key] = { income: 0, expense: 0 };
+    }
+
+    (histTxns || []).forEach((item) => {
+      const ym = item.date ? item.date.substring(0, 7) : '';
+      if (buckets[ym]) {
+        const amt = Number(item.amount || 0);
+        if (item.type === 'income') buckets[ym].income += amt;
+        if (item.type === 'expense') buckets[ym].expense += amt;
+      }
+    });
 
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-
-      const { data: hist } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .eq('user_id', userId)
-        .gte('date', mStart)
-        .lte('date', mEnd);
-
-      let inc = 0;
-      let exp = 0;
-      (hist || []).forEach((item) => {
-        if (item.type === 'income') inc += Number(item.amount);
-        if (item.type === 'expense') exp += Number(item.amount);
-      });
-
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const b = buckets[key] || { income: 0, expense: 0 };
       monthlyComparison.push({
         month: monthNames[d.getMonth()],
-        income: inc,
-        expense: exp,
-        savings: inc - exp,
+        income: Number(b.income.toFixed(2)),
+        expense: Number(b.expense.toFixed(2)),
+        savings: Number((b.income - b.expense).toFixed(2)),
       });
     }
 

@@ -1,11 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { Appearance, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useThemeStore } from '../store/themeStore';
 import { useAuthStore } from '../store/authStore';
+import { ToastHost } from '../components/ui/Toast';
+
+// Keep native splash visible until theme & auth hydration complete
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,9 +27,10 @@ export default function RootLayout() {
   const loadPersistedTheme = useThemeStore((s) => s.loadPersistedTheme);
   const updateSystemScheme = useThemeStore((s) => s.updateSystemScheme);
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
+  const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
-    loadPersistedTheme();
+    Promise.resolve(loadPersistedTheme()).finally(() => setThemeReady(true));
     initializeAuth();
 
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
@@ -32,6 +38,21 @@ export default function RootLayout() {
     });
 
     return () => subscription.remove();
+  }, [initializeAuth, loadPersistedTheme, updateSystemScheme]);
+
+  // Hide static OS splash as soon as theme hydrates so the animated GIF splash screen plays immediately
+  useEffect(() => {
+    if (themeReady) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [themeReady]);
+
+  // Safety fallback so native splash never stalls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 1200);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -79,6 +100,7 @@ export default function RootLayout() {
             <Stack.Screen name="analytics/index" />
             <Stack.Screen name="settings/index" />
           </Stack>
+          <ToastHost />
         </View>
       </QueryClientProvider>
     </SafeAreaProvider>

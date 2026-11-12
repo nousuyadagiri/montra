@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,62 +6,92 @@ import {
   RefreshControl,
   TouchableOpacity,
   Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  BarChart3,
+  Wallet,
+  Sparkles,
+  TrendingUp,
+  Plus,
+  ArrowDownLeft,
+  ArrowLeftRight,
+  Users,
+  LogIn,
+} from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { useSyncStore } from '../../store/syncStore';
 import { dashboardService, DashboardMetrics } from '../../services/dashboardService';
+import { DEMO_ANALYTICS_INSIGHTS } from '../../services/demoData';
 import {
   Text,
   Heading,
-  CurrencyText,
-  Card,
-  Badge,
-  Button,
-  LoadingState,
+  BalanceCard,
+  TransactionItem,
+  QuickActionButton,
+  MonthlyOverview,
+  IncomeExpenseChart,
+  DemoDataBadge,
+  DashboardSkeleton,
   EmptyState,
+  ErrorState,
 } from '../../components/ui';
-import { MonthlyBarChart, CategoryProgressRow } from '../../components/charts/FinanceCharts';
+import { CategoryProgressRow } from '../../components/charts/FinanceCharts';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Plus,
-  ArrowLeftRight,
-  Users,
-  BarChart3,
-  Calendar,
-  Wallet,
-  TrendingUp,
-  CreditCard,
-  ChevronRight,
-} from 'lucide-react-native';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
+import { SupportedCurrency } from '../../types/database';
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+  const syncTick = useSyncStore((s) => s.syncTick);
 
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const demoTransactions = useDemoStore((s) => s.demoTransactions);
+  const demoAccounts = useDemoStore((s) => s.demoAccounts);
+  const getDemoDashboardMetrics = useDemoStore((s) => s.getDemoDashboardMetrics);
+
+  const [realMetrics, setRealMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const hasLoadedRef = useRef(false);
+
+  const isDemo = !user;
 
   const fetchDashboard = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      setRefreshing(false);
+      setFetchError(null);
+      return;
+    }
     try {
-      const data = await dashboardService.getDashboardMetrics(user.id);
-      setMetrics(data);
-    } catch (err) {
-      console.warn('Dashboard fetch error:', err);
+      setFetchError(null);
+      const data = await dashboardService.getDashboardMetrics(user.id, selectedDate);
+      hasLoadedRef.current = true;
+      setRealMetrics(data);
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Unable to load dashboard metrics.');
+      setFetchError(msg);
+      if (hasLoadedRef.current) {
+        toast.error(msg, 'Sync Issue');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, selectedDate]);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,25 +99,82 @@ export default function HomeScreen() {
     }, [fetchDashboard])
   );
 
+  useEffect(() => {
+    if (syncTick > 0) {
+      fetchDashboard();
+    }
+  }, [syncTick, fetchDashboard]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchDashboard();
   };
 
-  if (loading && !metrics) {
+  // Re-evaluates automatically whenever subscribed demo slices or selectedDate change
+  void demoTransactions;
+  void demoAccounts;
+  void demoProfile;
+  const demoMetrics = getDemoDashboardMetrics(selectedDate.getFullYear(), selectedDate.getMonth());
+
+  const emptyRealMetrics: DashboardMetrics = useMemo(
+    () => ({
+      totalBalance: 0,
+      monthlyIncome: 0,
+      monthlyExpenses: 0,
+      netSavings: 0,
+      savingsRate: 0,
+      monthlySalary: Number(profile?.monthly_salary || 0),
+      additionalIncome: 0,
+      salaryDate: profile?.salary_date || 1,
+      todayExpenses: 0,
+      thisWeekExpenses: 0,
+      thisMonthExpenses: 0,
+      recentTransactions: [],
+      categoryBreakdown: [],
+      monthlyTrends: [],
+    }),
+    [profile?.monthly_salary, profile?.salary_date]
+  );
+
+  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
+  const tabHeight = 62 + bottomInset;
+
+  if (loading && !isDemo && !realMetrics) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <LoadingState message="Calculating your financial metrics..." />
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}>
+        <DashboardSkeleton />
       </View>
     );
   }
 
-  const totalBal = metrics?.totalBalance ?? 0;
-  const mIncome = metrics?.monthlyIncome ?? 0;
-  const mExpense = metrics?.monthlyExpenses ?? 0;
-  const netSave = metrics?.netSavings ?? 0;
-  const monthlySalary = metrics?.monthlySalary ?? 0;
-  const additionalIncome = metrics?.additionalIncome ?? 0;
+  if (!loading && !isDemo && !realMetrics && fetchError) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background, justifyContent: 'center', paddingTop: topInset },
+        ]}
+      >
+        <ErrorState
+          title="Could Not Load Dashboard"
+          message={fetchError}
+          onRetry={() => {
+            setLoading(true);
+            fetchDashboard();
+          }}
+        />
+      </View>
+    );
+  }
+
+  const metrics = isDemo ? demoMetrics : (realMetrics || emptyRealMetrics);
+  const activeProfile = isDemo ? demoProfile : profile;
+  const currency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+  const displayName = isDemo
+    ? demoProfile.full_name
+    : (profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Financier');
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -95,8 +182,8 @@ export default function HomeScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + Spacing['3xl'],
+            paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10),
+            paddingBottom: tabHeight + Spacing.lg,
           },
         ]}
         refreshControl={
@@ -108,150 +195,138 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Header */}
+        {/* 1. TOP HEADER */}
         <View style={styles.topHeader}>
-          <View>
+          <View style={styles.welcomeTextGroup}>
             <Text variant="xs" color="secondary" weight="semibold" style={styles.greetingSub}>
               WELCOME BACK
             </Text>
-            <Heading level={1} style={styles.userName}>
-              {profile?.full_name || 'Financier'}
+            <Heading level={2} style={styles.userName} numberOfLines={1}>
+              {displayName}
             </Heading>
           </View>
-          <TouchableOpacity
-            style={[styles.analyticsBtn, { backgroundColor: colors.surface }]}
-            onPress={() => router.push('/analytics')}
-          >
-            <BarChart3 size={20} color={colors.primary} />
-          </TouchableOpacity>
+
+          <View style={styles.headerRightActions}>
+            {isDemo ? <DemoDataBadge /> : null}
+
+            <TouchableOpacity
+              style={[
+                styles.iconBtn,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                },
+              ]}
+              onPress={() => router.push('/analytics')}
+              accessibilityLabel="View Analytics"
+            >
+              <BarChart3 size={17} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Section A: Total Balance Card */}
-        <Card elevated style={[styles.mainCard, { borderColor: colors.primaryMuted }]}>
-          <View style={styles.balanceHeader}>
-            <Text variant="xs" color="secondary" weight="semibold">
-              TOTAL AVAILABLE BALANCE
-            </Text>
-            <Badge
-              label={`${metrics?.savingsRate ?? 0}% Saved`}
-              variant={netSave >= 0 ? 'success' : 'error'}
-              size="sm"
-            />
-          </View>
+        {isDemo ? (
+          <TouchableOpacity
+            onPress={() => router.push('/(auth)/login')}
+            activeOpacity={0.8}
+            style={[
+              styles.demoPromptBanner,
+              { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text variant="xs" weight="bold" color="primary">
+                Demo Mode Preview
+              </Text>
+              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                Sign in with your account to sync real-time finances across devices.
+              </Text>
+            </View>
+            <View style={[styles.demoSignInChip, { backgroundColor: colors.primary }]}>
+              <LogIn size={12} color={colors.onPrimary} />
+              <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, fontSize: 11 }}>
+                Sign In
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ) : null}
 
-          <CurrencyText
-            amount={totalBal}
-            currency={profile?.currency || 'INR'}
-            variant="3xl"
-            weight="extrabold"
-            style={styles.totalBalanceText}
+        {/* 2. MONTH SELECTOR */}
+        <View style={styles.monthSelectorRow}>
+          <MonthlyOverview
+            currentDate={selectedDate}
+            onPrevMonth={() => {
+              const prev = new Date(selectedDate);
+              prev.setMonth(prev.getMonth() - 1);
+              setSelectedDate(prev);
+            }}
+            onNextMonth={() => {
+              const next = new Date(selectedDate);
+              next.setMonth(next.getMonth() + 1);
+              setSelectedDate(next);
+            }}
+            onPressToday={() => setSelectedDate(new Date())}
           />
-
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          <View style={styles.incomeExpenseRow}>
-            <View style={styles.incomeCol}>
-              <View style={styles.statIconRow}>
-                <View style={[styles.miniCircle, { backgroundColor: colors.successMuted }]}>
-                  <ArrowDownLeft size={14} color={colors.success} />
-                </View>
-                <Text variant="xs" color="secondary">
-                  Monthly Income
-                </Text>
-              </View>
-              <CurrencyText
-                amount={mIncome}
-                currency={profile?.currency || 'INR'}
-                variant="md"
-                weight="bold"
-                style={{ color: colors.success }}
-              />
-            </View>
-
-            <View style={[styles.verticalDivider, { backgroundColor: colors.border }]} />
-
-            <View style={styles.expenseCol}>
-              <View style={styles.statIconRow}>
-                <View style={[styles.miniCircle, { backgroundColor: colors.errorMuted }]}>
-                  <ArrowUpRight size={14} color={colors.error} />
-                </View>
-                <Text variant="xs" color="secondary">
-                  Monthly Expenses
-                </Text>
-              </View>
-              <CurrencyText
-                amount={mExpense}
-                currency={profile?.currency || 'INR'}
-                variant="md"
-                weight="bold"
-                style={{ color: colors.error }}
-              />
-            </View>
-          </View>
-        </Card>
-
-        {/* Section F: Quick Action Buttons */}
-        <View style={styles.quickActionsContainer}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.surface }]}
-            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'expense' } })}
-          >
-            <View style={[styles.actionIconBg, { backgroundColor: colors.errorMuted }]}>
-              <Plus size={18} color={colors.error} />
-            </View>
-            <Text variant="xs" weight="medium" align="center">
-              Expense
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.surface }]}
-            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'income' } })}
-          >
-            <View style={[styles.actionIconBg, { backgroundColor: colors.successMuted }]}>
-              <ArrowDownLeft size={18} color={colors.success} />
-            </View>
-            <Text variant="xs" weight="medium" align="center">
-              Income
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.surface }]}
-            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'transfer' } })}
-          >
-            <View style={[styles.actionIconBg, { backgroundColor: colors.secondaryMuted }]}>
-              <ArrowLeftRight size={18} color={colors.secondary} />
-            </View>
-            <Text variant="xs" weight="medium" align="center">
-              Transfer
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.surface }]}
-            onPress={() => router.push('/(tabs)/split')}
-          >
-            <View style={[styles.actionIconBg, { backgroundColor: colors.primaryMuted }]}>
-              <Users size={18} color={colors.primary} />
-            </View>
-            <Text variant="xs" weight="medium" align="center">
-              Split
-            </Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Section B: Salary & Allocation Card */}
-        <Card elevated style={styles.sectionCard}>
-          <View style={styles.cardHeaderRow}>
+        {/* 3. HERO BALANCE CARD */}
+        <BalanceCard
+          totalBalance={metrics.totalBalance}
+          monthlyIncome={metrics.monthlyIncome}
+          monthlyExpenses={metrics.monthlyExpenses}
+          netSavings={metrics.netSavings}
+          savingsRate={metrics.savingsRate}
+          currency={currency}
+          onPressAnalytics={() => router.push('/analytics')}
+        />
+
+        {/* 4. QUICK ACTIONS */}
+        <View style={styles.quickActionsRow}>
+          <QuickActionButton
+            icon={Plus}
+            label="Expense"
+            variant="negative"
+            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'expense' } })}
+          />
+          <QuickActionButton
+            icon={ArrowDownLeft}
+            label="Income"
+            variant="positive"
+            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'income' } })}
+          />
+          <QuickActionButton
+            icon={ArrowLeftRight}
+            label="Transfer"
+            variant="secondary"
+            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'transfer' } })}
+          />
+          <QuickActionButton
+            icon={Users}
+            label="Split"
+            variant="primary"
+            onPress={() => router.push('/(tabs)/split')}
+          />
+        </View>
+
+        {/* 5. SALARY OVERVIEW (Compact Strip) */}
+        <View
+          style={[
+            styles.salaryCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.borderLight,
+            },
+          ]}
+        >
+          <View style={styles.salaryHeaderRow}>
             <View style={styles.iconHeadingRow}>
-              <Wallet size={18} color={colors.primary} />
-              <Text variant="base" weight="bold">
+              <Wallet size={15} color={colors.primary} />
+              <Text variant="xs" weight="bold">
                 Salary Overview
               </Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/settings')}>
-              <Text variant="xs" color="primary" weight="semibold">
+              <Text variant="xs" color="primary" weight="bold" style={{ fontSize: 11 }}>
                 Manage
               </Text>
             </TouchableOpacity>
@@ -259,90 +334,82 @@ export default function HomeScreen() {
 
           <View style={styles.salaryStatsRow}>
             <View style={styles.salaryStatItem}>
-              <Text variant="xs" color="secondary">
+              <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Base Monthly
               </Text>
-              <CurrencyText amount={monthlySalary} variant="base" weight="bold" />
+              <Text variant="sm" weight="bold" style={styles.statValue}>
+                {formatCurrency(metrics.monthlySalary, currency)}
+              </Text>
             </View>
             <View style={styles.salaryStatItem}>
-              <Text variant="xs" color="secondary">
+              <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Additional
               </Text>
-              <CurrencyText amount={additionalIncome} variant="base" weight="bold" />
+              <Text variant="sm" weight="bold" style={styles.statValue}>
+                {formatCurrency(metrics.additionalIncome, currency)}
+              </Text>
             </View>
             <View style={styles.salaryStatItem}>
-              <Text variant="xs" color="secondary">
+              <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Pay Date
               </Text>
-              <Text variant="base" weight="bold">
-                Day {metrics?.salaryDate ?? 1}
+              <Text variant="sm" weight="bold" style={styles.statValue}>
+                Day {metrics.salaryDate ?? 1}
               </Text>
             </View>
           </View>
-        </Card>
-
-        {/* Section C: Expense Overview (Today, Week, Month) */}
-        <View style={styles.timeframeExpenseRow}>
-          <Card elevated style={styles.timeframeCard}>
-            <Text variant="xs" color="secondary">
-              Today
-            </Text>
-            <CurrencyText
-              amount={metrics?.todayExpenses ?? 0}
-              variant="base"
-              weight="bold"
-              style={styles.timeframeAmount}
-            />
-          </Card>
-          <Card elevated style={styles.timeframeCard}>
-            <Text variant="xs" color="secondary">
-              This Week
-            </Text>
-            <CurrencyText
-              amount={metrics?.thisWeekExpenses ?? 0}
-              variant="base"
-              weight="bold"
-              style={styles.timeframeAmount}
-            />
-          </Card>
-          <Card elevated style={styles.timeframeCard}>
-            <Text variant="xs" color="secondary">
-              This Month
-            </Text>
-            <CurrencyText
-              amount={metrics?.thisMonthExpenses ?? 0}
-              variant="base"
-              weight="bold"
-              style={styles.timeframeAmount}
-            />
-          </Card>
         </View>
 
-        {/* Section D: Financial Analytics Chart */}
-        <Card elevated style={styles.sectionCard}>
-          <View style={styles.cardHeaderRow}>
+        {/* 6. INCOME VS EXPENSES VISUALIZATION */}
+        <View
+          style={[
+            styles.chartCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.borderLight,
+            },
+          ]}
+        >
+          <View style={styles.sectionHeaderRow}>
             <View style={styles.iconHeadingRow}>
-              <TrendingUp size={18} color={colors.secondary} />
-              <Text variant="base" weight="bold">
+              <TrendingUp size={15} color={colors.secondary} />
+              <Text variant="xs" weight="bold">
                 Income vs Expenses
               </Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/analytics')}>
-              <Text variant="xs" color="secondary">
-                View Full
+              <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 11 }}>
+                View Trends
               </Text>
             </TouchableOpacity>
           </View>
-          <MonthlyBarChart data={metrics?.monthlyTrends || []} height={170} />
-        </Card>
 
-        {/* Category Breakdown (Top 4) */}
-        {metrics?.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
-          <Card elevated style={styles.sectionCard}>
-            <Text variant="base" weight="bold" style={{ marginBottom: Spacing.md }}>
-              Category Breakdown
-            </Text>
-            {metrics.categoryBreakdown.slice(0, 4).map((cat, idx) => (
+          <IncomeExpenseChart data={metrics.monthlyTrends || []} height={135} />
+        </View>
+
+        {/* 7. SPENDING BREAKDOWN */}
+        {metrics.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
+          <View
+            style={[
+              styles.breakdownCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.borderLight,
+              },
+            ]}
+          >
+            <View style={styles.sectionHeaderRow}>
+              <Text variant="xs" weight="bold">
+                Top Spending
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/analytics')}>
+                <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 11 }}>
+                  All Categories
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {metrics.categoryBreakdown.slice(0, 3).map((cat, idx) => (
               <CategoryProgressRow
                 key={idx}
                 category={cat.categoryName}
@@ -351,87 +418,70 @@ export default function HomeScreen() {
                 color={cat.color}
               />
             ))}
-          </Card>
+          </View>
         ) : null}
 
-        {/* Section E: Recent Transactions */}
+        {/* 8. FINANCIAL INSIGHT */}
+        {isDemo ? (
+          <View
+            style={[
+              styles.insightBanner,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.borderLight,
+              },
+            ]}
+          >
+            <View style={styles.insightIconCircle}>
+              <Sparkles size={14} color={colors.primary} />
+            </View>
+            <View style={styles.insightTextGroup}>
+              <Text variant="xs" weight="bold" color="primary" style={{ fontSize: 10 }}>
+                FINANCIAL INSIGHT
+              </Text>
+              <Text variant="xs" color="secondary" style={{ lineHeight: 16, marginTop: 1, fontSize: 11.5 }}>
+                {DEMO_ANALYTICS_INSIGHTS[0].description}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* 9. RECENT TRANSACTIONS */}
         <View style={styles.recentTransactionsHeader}>
-          <Text variant="base" weight="bold">
+          <Text variant="sm" weight="bold">
             Recent Transactions
           </Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
-            <Text variant="sm" color="primary" weight="medium">
+            <Text variant="xs" color="primary" weight="bold">
               See All
             </Text>
           </TouchableOpacity>
         </View>
 
-        {metrics?.recentTransactions && metrics.recentTransactions.length > 0 ? (
-          <View style={styles.transactionsList}>
-            {metrics.recentTransactions.map((item) => {
-              const isIncome = item.type === 'income';
-              const isTransfer = item.type === 'transfer';
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={0.7}
-                  onPress={() => router.push(`/transactions/${item.id}`)}
-                >
-                  <Card style={styles.transactionCard}>
-                    <View style={styles.transactionRow}>
-                      <View
-                        style={[
-                          styles.transactionIconBg,
-                          {
-                            backgroundColor: isIncome
-                              ? colors.successMuted
-                              : isTransfer
-                              ? colors.secondaryMuted
-                              : colors.errorMuted,
-                          },
-                        ]}
-                      >
-                        {isIncome ? (
-                          <ArrowDownLeft size={18} color={colors.success} />
-                        ) : isTransfer ? (
-                          <ArrowLeftRight size={18} color={colors.secondary} />
-                        ) : (
-                          <ArrowUpRight size={18} color={colors.error} />
-                        )}
-                      </View>
-
-                      <View style={styles.transactionDetails}>
-                        <Text variant="sm" weight="semibold" numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text variant="xs" color="secondary">
-                          {item.category?.name || 'General'} • {item.date}
-                        </Text>
-                      </View>
-
-                      <CurrencyText
-                        amount={item.amount}
-                        currency={profile?.currency || 'INR'}
-                        variant="sm"
-                        weight="bold"
-                        style={{
-                          color: isIncome
-                            ? colors.success
-                            : isTransfer
-                            ? colors.secondary
-                            : colors.mainText,
-                        }}
-                      />
-                    </View>
-                  </Card>
-                </TouchableOpacity>
-              );
-            })}
+        {metrics.recentTransactions && metrics.recentTransactions.length > 0 ? (
+          <View
+            style={[
+              styles.transactionsCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.borderLight,
+              },
+            ]}
+          >
+            {metrics.recentTransactions.slice(0, 5).map((item, idx) => (
+              <TransactionItem
+                key={item.id}
+                transaction={item}
+                currency={currency}
+                onPress={() => router.push(`/transactions/${item.id}`)}
+                showDivider={idx < Math.min(metrics.recentTransactions.length, 5) - 1}
+              />
+            ))}
           </View>
         ) : (
           <EmptyState
             title="No Transactions Yet"
-            description="Tap '+ Add Expense' or '+ Add Income' above to record your first transaction."
+            description="Tap '+ Expense' or '+ Income' above to record your first real transaction."
           />
         )}
       </ScrollView>
@@ -450,100 +500,78 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  greetingSub: {
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  userName: {
-    letterSpacing: -0.5,
-  },
-  analyticsBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mainCard: {
-    padding: Spacing.xl,
-    marginBottom: Spacing.lg,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: Spacing.xs,
   },
-  totalBalanceText: {
-    marginVertical: Spacing.xs,
-  },
-  divider: {
-    height: 1,
-    marginVertical: Spacing.md,
-  },
-  incomeExpenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  incomeCol: {
+  welcomeTextGroup: {
     flex: 1,
+    paddingRight: Spacing.sm,
   },
-  expenseCol: {
-    flex: 1,
+  greetingSub: {
+    fontSize: 10,
+    letterSpacing: 1.2,
+    marginBottom: 1,
   },
-  verticalDivider: {
-    width: 1,
-    height: 36,
-    marginHorizontal: Spacing.md,
+  userName: {
+    fontSize: 20,
+    letterSpacing: -0.4,
   },
-  statIconRow: {
+  headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    gap: Spacing.xs,
   },
-  miniCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickActionsContainer: {
+  demoPromptBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  actionButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
     borderRadius: BorderRadius.lg,
-    gap: 6,
+    borderWidth: 1,
+    marginBottom: Spacing.sm,
   },
-  actionIconBg: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  demoSignInChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sectionCard: {
+  monthSelectorRow: {
+    marginVertical: Spacing.xs,
+    alignItems: 'center',
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.xs,
     marginBottom: Spacing.md,
   },
-  cardHeaderRow: {
+  salaryCard: {
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  salaryHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   iconHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   salaryStatsRow: {
     flexDirection: 'row',
@@ -551,49 +579,64 @@ const styles = StyleSheet.create({
   },
   salaryStatItem: {
     flex: 1,
-    gap: 4,
+    gap: 1,
   },
-  timeframeExpenseRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
+  statLabel: {
+    fontSize: 10.5,
   },
-  timeframeCard: {
-    flex: 1,
+  statValue: {
+    fontSize: 13.5,
+  },
+  chartCard: {
+    marginBottom: Spacing.sm,
     padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
-  timeframeAmount: {
-    marginTop: 4,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  breakdownCard: {
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  insightBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.sm,
+  },
+  insightIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(163, 230, 53, 0.12)',
+  },
+  insightTextGroup: {
+    flex: 1,
   },
   recentTransactionsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  transactionsList: {
-    gap: Spacing.xs,
-  },
-  transactionCard: {
-    padding: Spacing.md,
+    marginTop: 4,
     marginBottom: Spacing.xs,
+    paddingHorizontal: 2,
   },
-  transactionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  transactionIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  transactionDetails: {
-    flex: 1,
-    gap: 2,
+  transactionsCard: {
+    paddingVertical: 2,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
   },
 });
-

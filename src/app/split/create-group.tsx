@@ -1,28 +1,82 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { splitService } from '../../services/splitService';
-import { Text, Heading, Input, Button, Header, Card } from '../../components/ui';
+import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
-import { Plus, Trash2, Check, Users } from 'lucide-react-native';
+import { Trash2, Check } from 'lucide-react-native';
 
 const GROUP_CATEGORIES = ['Trip', 'Apartment', 'Household', 'Dinner', 'Project', 'Other'];
 
 export default function CreateGroupScreen() {
   const router = useRouter();
+  const { editGroupId } = useLocalSearchParams<{ editGroupId?: string }>();
+  const isEditing = Boolean(editGroupId);
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+
+  const demoGroups = useDemoStore((s) => s.demoGroups);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const createDemoGroup = useDemoStore((s) => s.createDemoGroup);
+  const updateDemoGroup = useDemoStore((s) => s.updateDemoGroup);
+
+  const isDemo = !user || (editGroupId?.startsWith('demo-') ?? false);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Trip');
   const [memberNames, setMemberNames] = useState<string[]>(['']);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(Boolean(editGroupId && !isDemo));
+
+  useEffect(() => {
+    if (!editGroupId) {
+      setInitialLoading(false);
+      return;
+    }
+    if (isDemo) {
+      const existing = demoGroups.find((g) => g.id === editGroupId);
+      if (existing) {
+        setName(existing.name);
+        setDescription(existing.description || '');
+        setCategory(existing.category || 'Trip');
+      }
+      setInitialLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
+    setInitialLoading(true);
+    splitService
+      .getGroupDetails(editGroupId, user.id)
+      .then((res) => {
+        setName(res.group.name);
+        setDescription(res.group.description || '');
+        setCategory(res.group.category || 'Trip');
+      })
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Unable to load group details.'));
+      })
+      .finally(() => setInitialLoading(false));
+  }, [editGroupId, isDemo, user, demoGroups]);
 
   const handleAddMemberField = () => {
     setMemberNames([...memberNames, '']);
@@ -40,44 +94,83 @@ export default function CreateGroupScreen() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
     if (!name.trim()) {
-      Alert.alert('Required Field', 'Please enter a name for the group.');
+      toast.warning('Please enter a name for the group.', 'Group Name Required');
       return;
     }
 
     const filteredMembers = memberNames.map((m) => m.trim()).filter(Boolean);
+    const activeProfile = isDemo ? demoProfile : profile;
 
     try {
       setLoading(true);
-      await splitService.createGroup(user.id, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        category,
-        currency: profile?.currency || 'INR',
-        currentUserName: profile?.full_name || 'You',
-        memberNames: filteredMembers,
-      });
+      if (isDemo) {
+        if (editGroupId) {
+          updateDemoGroup(editGroupId, {
+            name: name.trim(),
+            description: description.trim() || undefined,
+            category,
+          });
+          toast.success('Group details updated.');
+        } else {
+          createDemoGroup({
+            name: name.trim(),
+            description: description.trim() || undefined,
+            category,
+            currency: activeProfile?.currency || 'INR',
+            memberNames: filteredMembers,
+          });
+          toast.success(`Group "${name.trim()}" created.`);
+        }
+      } else if (user) {
+        if (editGroupId) {
+          await splitService.updateGroup(editGroupId, {
+            name: name.trim(),
+            description: description.trim() || null,
+            category,
+          });
+          toast.success('Group details updated.');
+        } else {
+          await splitService.createGroup(user.id, {
+            name: name.trim(),
+            description: description.trim() || undefined,
+            category,
+            currency: activeProfile?.currency || 'INR',
+            currentUserName: activeProfile?.full_name || 'You',
+            memberNames: filteredMembers,
+          });
+          toast.success(`Group "${name.trim()}" created!`);
+        }
+      } else {
+        toast.error('Please sign in to create a synced group.');
+        return;
+      }
 
       router.back();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create group.');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save group.'), 'Unable to Save Group');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Create Split Group" showBack />
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Header title={isEditing ? 'Edit Split Group' : 'Create Split Group'} showBack />
+      {initialLoading ? (
+        <LoadingState message="Loading group details..." />
+      ) : (
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing.xl },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <Input
           label="Group Name"
           placeholder="e.g. Goa Trip 2026, Flat 402"
@@ -125,56 +218,59 @@ export default function CreateGroupScreen() {
           </View>
         </View>
 
-        {/* Group Members Input */}
-        <View style={styles.section}>
-          <View style={styles.membersHeader}>
-            <Text variant="sm" weight="medium" color="secondary">
-              Group Members
-            </Text>
-            <TouchableOpacity onPress={handleAddMemberField}>
-              <Text variant="xs" color="primary" weight="bold">
-                + Add Member
+        {/* Group Members Input (only when creating a new group) */}
+        {!isEditing ? (
+          <View style={styles.section}>
+            <View style={styles.membersHeader}>
+              <Text variant="sm" weight="medium" color="secondary">
+                Group Members
               </Text>
-            </TouchableOpacity>
-          </View>
-
-          <Card elevated style={styles.membersCard}>
-            <View style={styles.selfMemberRow}>
-              <Text variant="sm" weight="bold">
-                {profile?.full_name || 'You'} (Admin)
-              </Text>
+              <TouchableOpacity onPress={handleAddMemberField}>
+                <Text variant="xs" color="primary" weight="bold">
+                  + Add Member
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {memberNames.map((mem, index) => (
-              <View key={index} style={styles.memberInputRow}>
-                <Input
-                  placeholder={`Friend ${index + 1} Name`}
-                  value={mem}
-                  onChangeText={(val) => handleMemberChange(index, val)}
-                  containerStyle={{ flex: 1, marginBottom: 0 }}
-                />
-                <TouchableOpacity
-                  onPress={() => handleRemoveMember(index)}
-                  style={styles.trashBtn}
-                >
-                  <Trash2 size={18} color={colors.error} />
-                </TouchableOpacity>
+            <Card elevated style={styles.membersCard}>
+              <View style={styles.selfMemberRow}>
+                <Text variant="sm" weight="bold">
+                  {(isDemo ? demoProfile?.full_name : profile?.full_name) || 'You'} (Admin)
+                </Text>
               </View>
-            ))}
-          </Card>
-        </View>
+
+              {memberNames.map((mem, index) => (
+                <View key={index} style={styles.memberInputRow}>
+                  <Input
+                    placeholder={`Friend ${index + 1} Name`}
+                    value={mem}
+                    onChangeText={(val) => handleMemberChange(index, val)}
+                    containerStyle={{ flex: 1, marginBottom: 0 }}
+                  />
+                  <TouchableOpacity
+                    onPress={() => handleRemoveMember(index)}
+                    style={styles.trashBtn}
+                  >
+                    <Trash2 size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </Card>
+          </View>
+        ) : null}
 
         <Button
-          title="Create Group"
+          title={isEditing ? 'Save Changes' : 'Create Group'}
           variant="primary"
           size="lg"
           loading={loading}
           onPress={handleSave}
-          leftIcon={<Check size={20} color="#0B0F14" />}
+          leftIcon={<Check size={20} color={colors.onPrimary} />}
           buttonStyle={{ marginTop: Spacing.xl }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 

@@ -245,8 +245,8 @@ ALTER TABLE public.recurring_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- 1. PROFILES POLICIES
-CREATE POLICY "Users can view own profile" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Authenticated users can view profiles" ON public.profiles
+  FOR SELECT USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Users can insert own profile" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
@@ -318,47 +318,43 @@ CREATE POLICY "Group creators or members can update group" ON public.expense_gro
 CREATE POLICY "Group creators can delete group" ON public.expense_groups
   FOR DELETE USING (auth.uid() = created_by);
 
--- 8. GROUP MEMBERS POLICIES
+-- 8. SECURITY DEFINER HELPERS FOR GROUP MEMBERSHIP (PREVENTS RLS RECURSION)
+CREATE OR REPLACE FUNCTION public.is_group_member_or_creator(p_group_id UUID, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.expense_groups
+    WHERE id = p_group_id AND created_by = p_user_id
+    UNION ALL
+    SELECT 1 FROM public.group_members
+    WHERE group_id = p_group_id AND user_id = p_user_id
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_group_admin_or_creator(p_group_id UUID, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.expense_groups
+    WHERE id = p_group_id AND created_by = p_user_id
+    UNION ALL
+    SELECT 1 FROM public.group_members
+    WHERE group_id = p_group_id AND user_id = p_user_id AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- GROUP MEMBERS POLICIES
 CREATE POLICY "Members can view other members in group" ON public.group_members
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.expense_groups
-      WHERE public.expense_groups.id = group_members.group_id
-      AND (
-        public.expense_groups.created_by = auth.uid() OR
-        EXISTS (
-          SELECT 1 FROM public.group_members gm2
-          WHERE gm2.group_id = group_members.group_id
-          AND gm2.user_id = auth.uid()
-        )
-      )
-    )
+    public.is_group_member_or_creator(group_id, auth.uid())
   );
 
 CREATE POLICY "Group creators or admins can add members" ON public.group_members
   FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.expense_groups
-      WHERE public.expense_groups.id = group_members.group_id
-      AND (
-        public.expense_groups.created_by = auth.uid() OR
-        EXISTS (
-          SELECT 1 FROM public.group_members gm2
-          WHERE gm2.group_id = group_members.group_id
-          AND gm2.user_id = auth.uid()
-          AND gm2.role = 'admin'
-        )
-      )
-    )
+    public.is_group_admin_or_creator(group_id, auth.uid())
   );
 
 CREATE POLICY "Group creators or admins can delete members" ON public.group_members
   FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM public.expense_groups
-      WHERE public.expense_groups.id = group_members.group_id
-      AND (public.expense_groups.created_by = auth.uid() OR group_members.user_id = auth.uid())
-    )
+    public.is_group_admin_or_creator(group_id, auth.uid()) OR user_id = auth.uid()
   );
 
 -- 9. GROUP EXPENSES & SPLITS POLICIES

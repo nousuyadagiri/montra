@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { SavingsGoal, SavingsContribution } from '../types/database';
+import { useSyncStore } from '../store/syncStore';
 
 export interface CreateGoalInput {
   name: string;
@@ -61,6 +62,48 @@ export const savingsService = {
       .single();
 
     if (error) throw error;
+    useSyncStore.getState().bumpSync();
+    return data;
+  },
+
+  async updateGoal(
+    goalId: string,
+    updates: {
+      name?: string;
+      targetAmount?: number;
+      currentAmount?: number;
+      targetDate?: string | null;
+      category?: string;
+    }
+  ): Promise<SavingsGoal> {
+    const { data: existing } = await supabase
+      .from('savings_goals')
+      .select('target_amount, current_amount')
+      .eq('id', goalId)
+      .single();
+
+    const nextTarget = updates.targetAmount ?? Number(existing?.target_amount ?? 0);
+    const nextCurrent = updates.currentAmount ?? Number(existing?.current_amount ?? 0);
+
+    const payload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      is_completed: nextTarget > 0 && nextCurrent >= nextTarget,
+    };
+    if (updates.name !== undefined) payload.name = updates.name.trim();
+    if (updates.targetAmount !== undefined) payload.target_amount = updates.targetAmount;
+    if (updates.currentAmount !== undefined) payload.current_amount = updates.currentAmount;
+    if (updates.targetDate !== undefined) payload.target_date = updates.targetDate;
+    if (updates.category !== undefined) payload.category = updates.category;
+
+    const { data, error } = await supabase
+      .from('savings_goals')
+      .update(payload)
+      .eq('id', goalId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    useSyncStore.getState().bumpSync();
     return data;
   },
 
@@ -108,12 +151,14 @@ export const savingsService = {
         .eq('id', goalId);
     }
 
+    useSyncStore.getState().bumpSync();
     return contribution;
   },
 
   async deleteGoal(goalId: string): Promise<void> {
     const { error } = await supabase.from('savings_goals').delete().eq('id', goalId);
     if (error) throw error;
+    useSyncStore.getState().bumpSync();
   },
 };
 

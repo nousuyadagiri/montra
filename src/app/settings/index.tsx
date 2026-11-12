@@ -1,60 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   Alert,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { salaryService, SalaryAllocation } from '../../services/salaryService';
 import { transactionService } from '../../services/transactionService';
-import { Account } from '../../types/database';
+import { Account, SupportedCurrency } from '../../types/database';
 import {
   Text,
-  Heading,
   CurrencyText,
   Input,
   Button,
   Header,
   Card,
   Badge,
+  LoadingState,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
-import { parseCurrencyInput, formatCurrency, CURRENCY_SYMBOLS } from '../../utils/currency';
+import { parseCurrencyInput, CURRENCY_SYMBOLS } from '../../utils/currency';
 import {
   CreditCard,
-  Wallet,
-  Check,
-  Plus,
-  Coins,
   Calendar,
   Sparkles,
+  Pencil,
+  Trash2,
+  Star,
 } from 'lucide-react-native';
 
 export default function SettingsScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const demoAccounts = useDemoStore((s) => s.demoAccounts);
+  const updateDemoProfile = useDemoStore((s) => s.updateDemoProfile);
+  const createDemoAccount = useDemoStore((s) => s.createDemoAccount);
+  const updateDemoAccount = useDemoStore((s) => s.updateDemoAccount);
+  const deleteDemoAccount = useDemoStore((s) => s.deleteDemoAccount);
+  const addDemoTransaction = useDemoStore((s) => s.addDemoTransaction);
+
+  const isDemo = !user;
+  const activeProfile = isDemo ? demoProfile : profile;
+  const activeCurrency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+
   const [salaryStr, setSalaryStr] = useState(
-    profile?.monthly_salary ? profile.monthly_salary.toString() : ''
+    activeProfile?.monthly_salary ? activeProfile.monthly_salary.toString() : ''
   );
   const [salaryDateStr, setSalaryDateStr] = useState(
-    profile?.salary_date ? profile.salary_date.toString() : '1'
+    activeProfile?.salary_date ? activeProfile.salary_date.toString() : '1'
   );
   const [allocations, setAllocations] = useState<SalaryAllocation[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [initialLoading, setInitialLoading] = useState(!isDemo);
   const [savingSalary, setSavingSalary] = useState(false);
 
-  // New Account state
+  // Add / Edit Account state
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [newAccName, setNewAccName] = useState('');
   const [newAccType, setNewAccType] = useState<
     'bank' | 'cash' | 'credit' | 'investment' | 'wallet' | 'other'
@@ -62,65 +78,98 @@ export default function SettingsScreen() {
   const [newAccBalance, setNewAccBalance] = useState('');
   const [addingAccount, setAddingAccount] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    const salaryVal = parseCurrencyInput(salaryStr);
-    const allocs = salaryService.calculateAllocations(salaryVal);
-    setAllocations(allocs);
+  const loadAccounts = useCallback(async () => {
+    if (isDemo) {
+      setAccounts(demoAccounts);
+      setInitialLoading(false);
+      return;
+    }
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
+    try {
+      const accs = await transactionService.getAccounts(user.id);
+      setAccounts(accs);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to load bank accounts.'));
+    } finally {
+      setInitialLoading(false);
+    }
+  }, [isDemo, user, demoAccounts]);
 
-    transactionService.getAccounts(user.id).then(setAccounts);
-  }, [user, salaryStr]);
+  useEffect(() => {
+    const salaryVal = parseCurrencyInput(salaryStr);
+    setAllocations(salaryService.calculateAllocations(salaryVal));
+  }, [salaryStr]);
+
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
 
   const handleSaveSalary = async () => {
-    if (!user) return;
     const salary = parseCurrencyInput(salaryStr);
     const dateNum = parseInt(salaryDateStr, 10);
 
     if (isNaN(dateNum) || dateNum < 1 || dateNum > 31) {
-      Alert.alert('Invalid Date', 'Salary payment date must be between 1 and 31.');
+      toast.warning('Salary payment date must be between 1 and 31.', 'Invalid Date');
       return;
     }
 
     try {
       setSavingSalary(true);
-      await salaryService.updateSalarySettings(user.id, salary, dateNum);
-      await refreshProfile();
-      Alert.alert('Saved', 'Monthly salary settings updated successfully.');
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to update salary settings.');
+      if (isDemo) {
+        updateDemoProfile({ monthly_salary: salary, salary_date: dateNum });
+      } else if (user) {
+        await salaryService.updateSalarySettings(user.id, salary, dateNum);
+        await refreshProfile();
+      }
+      toast.success('Monthly salary settings updated.', 'Saved');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to update salary settings.'));
     } finally {
       setSavingSalary(false);
     }
   };
 
   const handleRecordSalaryCredit = async () => {
-    if (!user) return;
     const salary = parseCurrencyInput(salaryStr);
     if (salary <= 0) {
-      Alert.alert('Error', 'Please set a monthly salary amount first.');
+      toast.warning('Please set a monthly salary amount first.');
       return;
     }
-    const targetAcc = accounts[0];
+    const targetAcc = accounts.find((a) => a.is_default) || accounts[0];
     if (!targetAcc) {
-      Alert.alert('Error', 'Please create a bank account first.');
+      toast.warning('Please create a bank account first.');
       return;
     }
 
     Alert.alert(
       'Credit Monthly Salary',
-      `Record ₹${salary} salary credit into "${targetAcc.name}"?`,
+      `Record ${currencySymbol}${salary} salary credit into "${targetAcc.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm Credit',
           onPress: async () => {
             try {
-              await salaryService.recordSalaryReceived(user.id, targetAcc.id, salary);
-              const updatedAccs = await transactionService.getAccounts(user.id);
-              setAccounts(updatedAccs);
-              Alert.alert('Success', 'Monthly salary credited to your account!');
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to record salary.');
+              if (isDemo) {
+                addDemoTransaction({
+                  title: 'Monthly Salary Credit',
+                  amount: salary,
+                  type: 'income',
+                  accountId: targetAcc.id,
+                  categoryId: 'demo-cat-salary',
+                  date: new Date().toISOString().split('T')[0],
+                  paymentMethod: 'NetBanking',
+                });
+              } else if (user) {
+                await salaryService.recordSalaryReceived(user.id, targetAcc.id, salary);
+              }
+              await loadAccounts();
+              toast.success(`Credited to "${targetAcc.name}"!`, 'Salary Recorded');
+            } catch (err: unknown) {
+              toast.error(getErrorMessage(err, 'Failed to record salary.'));
             }
           },
         },
@@ -128,41 +177,130 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleCreateAccount = async () => {
-    if (!user) return;
+  const resetAccountForm = () => {
+    setEditingAccountId(null);
+    setNewAccName('');
+    setNewAccBalance('');
+    setNewAccType('bank');
+    setShowAddAccount(false);
+  };
+
+  const startEditAccount = (acc: Account) => {
+    setEditingAccountId(acc.id);
+    setNewAccName(acc.name);
+    setNewAccBalance(String(acc.balance));
+    setNewAccType(acc.type);
+    setShowAddAccount(true);
+  };
+
+  const handleCreateOrUpdateAccount = async () => {
     if (!newAccName.trim()) {
-      Alert.alert('Required', 'Please enter account name.');
+      toast.warning('Please enter an account name.', 'Name Required');
       return;
     }
 
+    const parsedBal = parseCurrencyInput(newAccBalance);
+
     try {
       setAddingAccount(true);
-      const acc = await transactionService.createAccount(user.id, {
-        name: newAccName.trim(),
-        type: newAccType,
-        balance: parseCurrencyInput(newAccBalance),
-        balance_minor: Math.round(parseCurrencyInput(newAccBalance) * 100),
-        is_default: accounts.length === 0,
-      });
+      if (isDemo) {
+        if (editingAccountId) {
+          updateDemoAccount(editingAccountId, {
+            name: newAccName.trim(),
+            type: newAccType,
+            balance: parsedBal,
+          });
+        } else {
+          createDemoAccount({
+            name: newAccName.trim(),
+            type: newAccType,
+            balance: parsedBal,
+            balance_minor: Math.round(parsedBal * 100),
+            is_default: accounts.length === 0,
+          });
+        }
+      } else if (user) {
+        if (editingAccountId) {
+          await transactionService.updateAccount(editingAccountId, {
+            name: newAccName.trim(),
+            type: newAccType,
+            balance: parsedBal,
+          });
+        } else {
+          await transactionService.createAccount(user.id, {
+            name: newAccName.trim(),
+            type: newAccType,
+            balance: parsedBal,
+            balance_minor: Math.round(parsedBal * 100),
+            is_default: accounts.length === 0,
+          });
+        }
+      }
 
-      setAccounts([...accounts, acc]);
-      setNewAccName('');
-      setNewAccBalance('');
-      setShowAddAccount(false);
-      Alert.alert('Account Created', `"${acc.name}" added successfully.`);
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create account.');
+      toast.success(editingAccountId ? 'Account updated.' : `Account "${newAccName.trim()}" added!`);
+      await loadAccounts();
+      resetAccountForm();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save account.'));
     } finally {
       setAddingAccount(false);
     }
   };
 
-  const currencySymbol = CURRENCY_SYMBOLS[profile?.currency || 'INR'] || '₹';
+  const handleSetPrimary = async (acc: Account) => {
+    if (acc.is_default) return;
+    try {
+      if (isDemo) {
+        updateDemoAccount(acc.id, { is_default: true });
+      } else if (user) {
+        await transactionService.setDefaultAccount(user.id, acc.id);
+      }
+      toast.success(`"${acc.name}" set as primary account.`);
+      await loadAccounts();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to update primary account.'));
+    }
+  };
+
+  const handleDeleteAccount = (acc: Account) => {
+    if (accounts.length <= 1) {
+      toast.warning('You need at least one active account.');
+      return;
+    }
+    Alert.alert('Delete Account', `Delete "${acc.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (isDemo) {
+              deleteDemoAccount(acc.id);
+            } else {
+              await transactionService.deleteAccount(acc.id);
+            }
+            toast.success(`Account "${acc.name}" deleted.`);
+            await loadAccounts();
+          } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Failed to delete account.'));
+          }
+        },
+      },
+    ]);
+  };
+
+  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <Header title="Salary & Accounts" showBack />
-      <ScrollView
+      {initialLoading ? (
+        <LoadingState message="Loading accounts & salary settings..." />
+      ) : (
+        <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + Spacing['3xl'] },
@@ -235,7 +373,7 @@ export default function SettingsScreen() {
                   </View>
                   <CurrencyText
                     amount={a.suggestedAmount}
-                    currency={profile?.currency || 'INR'}
+                    currency={activeCurrency}
                     variant="sm"
                     weight="bold"
                     style={{ color: colors.primary }}
@@ -251,7 +389,16 @@ export default function SettingsScreen() {
           <Text variant="sm" weight="semibold" color="secondary">
             CONNECTED ACCOUNTS
           </Text>
-          <TouchableOpacity onPress={() => setShowAddAccount(!showAddAccount)}>
+          <TouchableOpacity
+            onPress={() => {
+              if (showAddAccount) {
+                resetAccountForm();
+              } else {
+                setEditingAccountId(null);
+                setShowAddAccount(true);
+              }
+            }}
+          >
             <Text variant="xs" color="primary" weight="bold">
               {showAddAccount ? 'Cancel' : '+ Add Account'}
             </Text>
@@ -261,7 +408,7 @@ export default function SettingsScreen() {
         {showAddAccount ? (
           <Card elevated style={styles.newAccountCard}>
             <Text variant="base" weight="bold" style={{ marginBottom: Spacing.sm }}>
-              New Account
+              {editingAccountId ? 'Edit Account' : 'New Account'}
             </Text>
 
             <Input
@@ -272,7 +419,7 @@ export default function SettingsScreen() {
             />
 
             <Input
-              label="Opening Balance"
+              label={editingAccountId ? 'Current Balance' : 'Opening Balance'}
               placeholder="0.00"
               prefix={currencySymbol}
               keyboardType="decimal-pad"
@@ -311,11 +458,11 @@ export default function SettingsScreen() {
             </View>
 
             <Button
-              title="Add Account"
+              title={editingAccountId ? 'Update Account' : 'Add Account'}
               variant="primary"
               size="md"
               loading={addingAccount}
-              onPress={handleCreateAccount}
+              onPress={handleCreateOrUpdateAccount}
               buttonStyle={{ marginTop: Spacing.md }}
             />
           </Card>
@@ -325,12 +472,12 @@ export default function SettingsScreen() {
           {accounts.map((acc) => (
             <Card key={acc.id} style={styles.accountCard}>
               <View style={styles.accountCardRow}>
-                <View style={[styles.accIconBg, { backgroundColor: colors.surface }]}>
+                <View style={[styles.accIconBg, { backgroundColor: colors.primaryMuted }]}>
                   <CreditCard size={20} color={colors.primary} />
                 </View>
                 <View style={styles.accInfo}>
                   <View style={styles.accNameRow}>
-                    <Text variant="base" weight="bold">
+                    <Text variant="base" weight="bold" numberOfLines={1}>
                       {acc.name}
                     </Text>
                     {acc.is_default ? (
@@ -341,18 +488,48 @@ export default function SettingsScreen() {
                     {acc.type} Account
                   </Text>
                 </View>
-                <CurrencyText
-                  amount={acc.balance}
-                  currency={profile?.currency || 'INR'}
-                  variant="base"
-                  weight="bold"
-                />
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  <CurrencyText
+                    amount={acc.balance}
+                    currency={activeCurrency}
+                    variant="base"
+                    weight="bold"
+                  />
+                  <View style={styles.accActionRow}>
+                    {!acc.is_default ? (
+                      <TouchableOpacity
+                        onPress={() => handleSetPrimary(acc)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        accessibilityLabel="Set as primary account"
+                      >
+                        <Star size={14} color={colors.warning} />
+                      </TouchableOpacity>
+                    ) : null}
+                    <TouchableOpacity
+                      onPress={() => startEditAccount(acc)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      accessibilityLabel="Edit account"
+                    >
+                      <Pencil size={14} color={colors.primary} />
+                    </TouchableOpacity>
+                    {accounts.length > 1 ? (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteAccount(acc)}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        accessibilityLabel="Delete account"
+                      >
+                        <Trash2 size={14} color={colors.error} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
               </View>
             </Card>
           ))}
         </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -444,6 +621,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  accActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });
 

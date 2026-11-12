@@ -1,5 +1,12 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  ViewStyle,
+  Platform,
+  StatusBar as RNStatusBar,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,13 +43,17 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 24 : 16);
+
   return (
     <View
       style={[
         styles.container,
         {
-          paddingTop: Math.max(insets.top, 12),
-          borderBottomColor: colors.border,
+          paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10),
+          borderBottomColor: colors.borderLight,
+          borderBottomWidth: StyleSheet.hairlineWidth,
           backgroundColor: colors.background,
         },
         style,
@@ -115,4 +126,3 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
 });
-

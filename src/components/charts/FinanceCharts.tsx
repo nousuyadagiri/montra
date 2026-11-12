@@ -164,7 +164,7 @@ export const CategoryProgressRow: React.FC<CategoryProgressProps> = ({
         </View>
       </View>
 
-      <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+      <View style={[styles.progressTrack, { backgroundColor: colors.elevatedSurface }]}>
         <View
           style={[
             styles.progressBar,

@@ -1,83 +1,107 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Users, Plus, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { useSyncStore } from '../../store/syncStore';
 import { splitService } from '../../services/splitService';
-import { ExpenseGroup } from '../../types/database';
+import { ExpenseGroup, SupportedCurrency } from '../../types/database';
 import {
   Text,
   Heading,
-  CurrencyText,
-  Button,
-  Card,
-  Badge,
-  LoadingState,
+  GroupExpenseCard,
+  DemoDataBadge,
   EmptyState,
+  ErrorState,
+  ListSkeleton,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
-import {
-  Users,
-  Plus,
-  ArrowDownLeft,
-  ArrowUpRight,
-  ChevronRight,
-  Plane,
-  Home,
-  Coffee,
-  Receipt,
-} from 'lucide-react-native';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 
 export default function SplitScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+  const syncTick = useSyncStore((s) => s.syncTick);
 
-  const [groups, setGroups] = useState<ExpenseGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const demoGroups = useDemoStore((s) => s.demoGroups);
+  const demoGroupExpenses = useDemoStore((s) => s.demoGroupExpenses);
+  const demoGroupSettlements = useDemoStore((s) => s.demoGroupSettlements);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const getDemoGroupDetails = useDemoStore((s) => s.getDemoGroupDetails);
+
+  const [realGroups, setRealGroups] = useState<ExpenseGroup[]>([]);
+  const [initialLoading, setInitialLoading] = useState(Boolean(user));
   const [refreshing, setRefreshing] = useState(false);
-  const [netOwed, setNetOwed] = useState(0);
-  const [netOwing, setNetOwing] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [realOwed, setRealOwed] = useState(0);
+  const [realOwing, setRealOwing] = useState(0);
+  const [groupBalancesMap, setGroupBalancesMap] = useState<Record<string, number>>({});
+  const hasLoadedRef = useRef(false);
+
+  const isDemo = !user;
 
   const fetchGroups = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setInitialLoading(false);
+      setRefreshing(false);
+      setFetchError(null);
+      return;
+    }
     try {
+      setFetchError(null);
       const data = await splitService.getGroups(user.id);
-      setGroups(data);
+      hasLoadedRef.current = true;
+      setRealGroups(data);
 
-      // Compute total owed and owing across groups
+      const groupDetailsList = await Promise.allSettled(
+        data.map((g) => splitService.getGroupDetails(g.id, user.id))
+      );
+
       let totalOwed = 0;
       let totalOwing = 0;
+      const bMap: Record<string, number> = {};
 
-      for (const g of data) {
-        try {
-          const details = await splitService.getGroupDetails(g.id, user.id);
+      groupDetailsList.forEach((res, idx) => {
+        if (res.status === 'fulfilled') {
+          const details = res.value;
+          const groupId = data[idx].id;
+          bMap[groupId] = details.yourNetBalance;
+
           if (details.yourNetBalance > 0) {
             totalOwed += details.yourNetBalance;
           } else if (details.yourNetBalance < 0) {
             totalOwing += Math.abs(details.yourNetBalance);
           }
-        } catch {
-          // ignore individual group err
         }
-      }
+      });
 
-      setNetOwed(totalOwed);
-      setNetOwing(totalOwing);
-    } catch (err) {
-      console.warn('Failed to fetch groups:', err);
+      setGroupBalancesMap(bMap);
+      setRealOwed(totalOwed);
+      setRealOwing(totalOwing);
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Unable to load shared groups.');
+      setFetchError(msg);
+      if (hasLoadedRef.current) {
+        toast.error(msg, 'Load Failed');
+      }
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
       setRefreshing(false);
     }
   }, [user]);
@@ -88,32 +112,46 @@ export default function SplitScreen() {
     }, [fetchGroups])
   );
 
+  useEffect(() => {
+    if (syncTick > 0) {
+      fetchGroups();
+    }
+  }, [syncTick, fetchGroups]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchGroups();
   };
 
-  const getCategoryIcon = (category: string) => {
-    switch (category.toLowerCase()) {
-      case 'trip':
-      case 'travel':
-        return <Plane size={20} color={colors.secondary} />;
-      case 'house':
-      case 'apartment':
-      case 'household':
-        return <Home size={20} color={colors.primary} />;
-      default:
-        return <Receipt size={20} color={colors.warning} />;
-    }
-  };
+  void demoGroupExpenses;
+  void demoGroupSettlements;
+  const demoSummary = (() => {
+    let owed = 0;
+    let owing = 0;
+    const map: Record<string, number> = {};
+    demoGroups.forEach((g) => {
+      const details = getDemoGroupDetails(g.id);
+      const bal = details?.yourNetBalance || 0;
+      map[g.id] = bal;
+      if (bal > 0) owed += bal;
+      else if (bal < 0) owing += Math.abs(bal);
+    });
+    return { owed, owing, map };
+  })();
 
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <LoadingState message="Loading shared groups and balances..." />
-      </View>
-    );
-  }
+  const activeProfile = isDemo ? demoProfile : profile;
+  const currency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+
+  const totalOwed = isDemo ? demoSummary.owed : realOwed;
+  const totalOwing = isDemo ? demoSummary.owing : realOwing;
+  const netSplitBalance = totalOwed - totalOwing;
+  const groupsList = isDemo ? demoGroups : realGroups;
+  const activeBalancesMap = isDemo ? demoSummary.map : groupBalancesMap;
+
+  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
+  const tabHeight = 62 + bottomInset;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -121,8 +159,8 @@ export default function SplitScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + Spacing['3xl'],
+            paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
+            paddingBottom: tabHeight + Spacing.xl,
           },
         ]}
         refreshControl={
@@ -134,78 +172,124 @@ export default function SplitScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Heading level={1}>Shared Expenses</Heading>
+        {/* 1. TOP HEADER */}
+        <View style={styles.topHeader}>
+          <View style={styles.titleWithBadge}>
+            <Heading level={2} style={styles.screenTitle}>Shared Expenses</Heading>
+            {isDemo ? <DemoDataBadge compact /> : null}
+          </View>
+
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.primary }]}
             onPress={() => router.push('/split/create-group')}
+            accessibilityLabel="Create group"
           >
-            <Plus size={18} color="#0B0F14" />
-            <Text variant="xs" weight="bold" style={{ color: '#0B0F14', marginLeft: 4 }}>
+            <Plus size={15} color={colors.onPrimary} strokeWidth={2.5} />
+            <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, marginLeft: 4 }}>
               New Group
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Global Net Balance Card */}
-        <Card elevated style={styles.summaryCard}>
-          <Text variant="xs" color="secondary" weight="semibold">
-            TOTAL SPLITWISE BALANCE
-          </Text>
+        {/* 2. GLOBAL SPLITWISE BALANCE CARD */}
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          ]}
+        >
+          <View style={styles.summaryTop}>
+            <Text variant="xs" color="secondary" weight="semibold">
+              TOTAL SHARED BALANCE
+            </Text>
+            <Text
+              variant="xs"
+              weight="bold"
+              style={{
+                color:
+                  netSplitBalance > 0
+                    ? colors.positive
+                    : netSplitBalance < 0
+                    ? colors.negative
+                    : colors.secondaryText,
+              }}
+            >
+              {netSplitBalance > 0
+                ? `Overall +${formatCurrency(netSplitBalance, currency)}`
+                : netSplitBalance < 0
+                ? `Overall -${formatCurrency(Math.abs(netSplitBalance), currency)}`
+                : 'All Settled'}
+            </Text>
+          </View>
 
           <View style={styles.balancesSplitRow}>
+            {/* Owed to you */}
             <View style={styles.balanceCol}>
               <View style={styles.balanceLabelRow}>
-                <View style={[styles.iconDot, { backgroundColor: colors.successMuted }]}>
-                  <ArrowDownLeft size={14} color={colors.success} />
+                <View
+                  style={[
+                    styles.iconDot,
+                    { backgroundColor: colors.successMuted },
+                  ]}
+                >
+                  <ArrowDownLeft size={13} color={colors.positive} />
                 </View>
-                <Text variant="xs" color="secondary">
+                <Text variant="xs" color="secondary" weight="medium">
                   You are owed
                 </Text>
               </View>
-              <CurrencyText
-                amount={netOwed}
-                currency={profile?.currency || 'INR'}
-                variant="xl"
-                weight="bold"
-                style={{ color: colors.success }}
-              />
+              <Text variant="lg" weight="bold" style={{ color: colors.positive, marginTop: 4 }}>
+                {formatCurrency(totalOwed, currency)}
+              </Text>
             </View>
 
-            <View style={[styles.vertLine, { backgroundColor: colors.border }]} />
+            <View style={[styles.vertLine, { backgroundColor: colors.borderLight }]} />
 
+            {/* You owe */}
             <View style={styles.balanceCol}>
               <View style={styles.balanceLabelRow}>
-                <View style={[styles.iconDot, { backgroundColor: colors.errorMuted }]}>
-                  <ArrowUpRight size={14} color={colors.error} />
+                <View
+                  style={[
+                    styles.iconDot,
+                    { backgroundColor: colors.expenseMuted },
+                  ]}
+                >
+                  <ArrowUpRight size={13} color={colors.negative} />
                 </View>
-                <Text variant="xs" color="secondary">
+                <Text variant="xs" color="secondary" weight="medium">
                   You owe
                 </Text>
               </View>
-              <CurrencyText
-                amount={netOwing}
-                currency={profile?.currency || 'INR'}
-                variant="xl"
-                weight="bold"
-                style={{ color: colors.error }}
-              />
+              <Text variant="lg" weight="bold" style={{ color: colors.negative, marginTop: 4 }}>
+                {formatCurrency(totalOwing, currency)}
+              </Text>
             </View>
           </View>
-        </Card>
+        </View>
 
-        {/* Groups List */}
+        {/* 3. GROUPS LIST HEADER */}
         <View style={styles.groupsHeader}>
-          <Text variant="base" weight="bold">
+          <Text variant="sm" weight="bold">
             Active Groups
           </Text>
           <Text variant="xs" color="secondary">
-            {groups.length} groups
+            {groupsList.length} {groupsList.length === 1 ? 'Group' : 'Groups'}
           </Text>
         </View>
 
-        {groups.length === 0 ? (
+        {/* 4. GROUPS LIST */}
+        {!isDemo && initialLoading ? (
+          <ListSkeleton count={4} cardHeight={78} />
+        ) : !isDemo && fetchError && groupsList.length === 0 ? (
+          <ErrorState
+            title="Could Not Load Groups"
+            message={fetchError}
+            onRetry={() => {
+              setInitialLoading(true);
+              fetchGroups();
+            }}
+          />
+        ) : groupsList.length === 0 ? (
           <EmptyState
             icon={<Users size={44} color={colors.primary} />}
             title="No Shared Groups"
@@ -214,41 +298,15 @@ export default function SplitScreen() {
             onAction={() => router.push('/split/create-group')}
           />
         ) : (
-          groups.map((group) => {
-            const memberCount = group.members?.length || 1;
-
-            return (
-              <TouchableOpacity
-                key={group.id}
-                activeOpacity={0.7}
-                onPress={() => router.push(`/split/${group.id}`)}
-              >
-                <Card elevated style={styles.groupCard}>
-                  <View style={styles.groupCardRow}>
-                    <View style={[styles.groupIconContainer, { backgroundColor: colors.surface }]}>
-                      {getCategoryIcon(group.category)}
-                    </View>
-
-                    <View style={styles.groupInfo}>
-                      <Text variant="base" weight="bold">
-                        {group.name}
-                      </Text>
-                      <Text variant="xs" color="secondary">
-                        {group.category} • {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                      </Text>
-                      {group.description ? (
-                        <Text variant="xs" color="tertiary" numberOfLines={1}>
-                          {group.description}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <ChevronRight size={20} color={colors.secondaryText} />
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            );
-          })
+          groupsList.map((group) => (
+            <GroupExpenseCard
+              key={group.id}
+              group={group}
+              netBalance={activeBalancesMap[group.id] || 0}
+              currency={currency}
+              onPress={() => router.push(`/split/${group.id}`)}
+            />
+          ))
         )}
       </ScrollView>
     </View>
@@ -262,26 +320,42 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.lg,
   },
-  headerRow: {
+  topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  screenTitle: {
+    fontSize: 20,
+    letterSpacing: -0.4,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: BorderRadius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
   },
   summaryCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.md,
+  },
+  summaryTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
   },
   balancesSplitRow: {
     flexDirection: 'row',
-    marginTop: Spacing.md,
     alignItems: 'center',
   },
   balanceCol: {
@@ -291,45 +365,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
   },
   iconDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   vertLine: {
-    width: 1,
-    height: 40,
+    width: StyleSheet.hairlineWidth,
+    height: 38,
     marginHorizontal: Spacing.md,
   },
   groupsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  groupCard: {
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  groupCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  groupIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  groupInfo: {
-    flex: 1,
-    gap: 2,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.xs,
   },
 });
-

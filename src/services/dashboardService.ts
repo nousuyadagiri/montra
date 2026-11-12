@@ -30,7 +30,7 @@ export interface DashboardMetrics {
 }
 
 export const dashboardService = {
-  async getDashboardMetrics(userId: string): Promise<DashboardMetrics> {
+  async getDashboardMetrics(userId: string, referenceDate: Date = new Date()): Promise<DashboardMetrics> {
     const profile = await authService.getProfile(userId);
     const monthlySalary = profile?.monthly_salary ? Number(profile.monthly_salary) : 0;
     const salaryDate = profile?.salary_date ?? 1;
@@ -43,22 +43,23 @@ export const dashboardService = {
 
     const totalBalance = (accounts || []).reduce((acc, curr) => acc + Number(curr.balance || 0), 0);
 
-    // 2. Determine date boundaries for current month, week, today
-    const now = new Date();
+    // 2. Determine date boundaries for selected month, week, today
+    const now = referenceDate;
+    const todayNow = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = todayNow.toISOString().split('T')[0];
 
-    const dayOfWeek = now.getDay(); // 0 is Sun
-    const firstDayOfWeek = new Date(now);
-    firstDayOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const dayOfWeek = todayNow.getDay(); // 0 is Sun
+    const firstDayOfWeek = new Date(todayNow);
+    firstDayOfWeek.setDate(todayNow.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
     const startOfWeekStr = firstDayOfWeek.toISOString().split('T')[0];
 
     // 3. Fetch current month transactions
     const { data: monthTxns } = await supabase
       .from('transactions')
-      .select('*, category:transaction_categories(*), account:accounts(*)')
+      .select('*, category:transaction_categories(*), account:accounts!account_id(*)')
       .eq('user_id', userId)
       .gte('date', startOfMonth)
       .lte('date', endOfMonth)
@@ -123,39 +124,50 @@ export const dashboardService = {
     // 4. Fetch recent transactions (last 6)
     const { data: recent } = await supabase
       .from('transactions')
-      .select('*, category:transaction_categories(*), account:accounts(*)')
+      .select('*, category:transaction_categories(*), account:accounts!account_id(*)')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(6);
 
-    // 5. Build 6-month historical trends
+    // 5. Build 6-month historical trends in a single batch query
     const monthlyTrends: { month: string; income: number; expense: number }[] = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+    const oldestMonth = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const rangeStart = oldestMonth.toISOString().split('T')[0];
+
+    const { data: histTxns } = await supabase
+      .from('transactions')
+      .select('type, amount, date')
+      .eq('user_id', userId)
+      .gte('date', rangeStart);
+
+    // Group in memory by YYYY-MM
+    const monthlyBucket: Record<string, { income: number; expense: number }> = {};
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyBucket[key] = { income: 0, expense: 0 };
+    }
 
-      const { data: hist } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .eq('user_id', userId)
-        .gte('date', mStart)
-        .lte('date', mEnd);
+    (histTxns || []).forEach((t) => {
+      const ym = t.date ? t.date.substring(0, 7) : '';
+      if (monthlyBucket[ym]) {
+        const amt = Number(t.amount || 0);
+        if (t.type === 'income') monthlyBucket[ym].income += amt;
+        if (t.type === 'expense') monthlyBucket[ym].expense += amt;
+      }
+    });
 
-      let inc = 0;
-      let exp = 0;
-      (hist || []).forEach((item) => {
-        if (item.type === 'income') inc += Number(item.amount);
-        if (item.type === 'expense') exp += Number(item.amount);
-      });
-
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const bucket = monthlyBucket[key] || { income: 0, expense: 0 };
       monthlyTrends.push({
         month: monthNames[d.getMonth()],
-        income: inc,
-        expense: exp,
+        income: Number(bucket.income.toFixed(2)),
+        expense: Number(bucket.expense.toFixed(2)),
       });
     }
 

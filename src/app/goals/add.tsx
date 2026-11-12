@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { savingsService } from '../../services/savingsService';
-import { Text, Heading, Input, Button, Header, Card } from '../../components/ui';
+import { SupportedCurrency } from '../../types/database';
+import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
-import { Check, Target, Calendar } from 'lucide-react-native';
+import { Calendar, Check } from 'lucide-react-native';
 
 const GOAL_CATEGORIES = [
   'Emergency Fund',
@@ -22,10 +26,19 @@ const GOAL_CATEGORIES = [
 
 export default function AddGoalScreen() {
   const router = useRouter();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const isEditing = Boolean(editId);
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+
+  const demoGoals = useDemoStore((s) => s.demoGoals);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const createDemoGoal = useDemoStore((s) => s.createDemoGoal);
+  const updateDemoGoal = useDemoStore((s) => s.updateDemoGoal);
+
+  const isDemo = !user || (editId?.startsWith('demo-') ?? false);
 
   const [name, setName] = useState('');
   const [targetAmountStr, setTargetAmountStr] = useState('');
@@ -33,45 +46,116 @@ export default function AddGoalScreen() {
   const [targetDate, setTargetDate] = useState('');
   const [category, setCategory] = useState('Emergency Fund');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(Boolean(editId && !isDemo));
+
+  useEffect(() => {
+    if (!editId) {
+      setInitialLoading(false);
+      return;
+    }
+    if (isDemo) {
+      const existing = demoGoals.find((g) => g.id === editId);
+      if (existing) {
+        setName(existing.name);
+        setTargetAmountStr(String(existing.target_amount));
+        setCurrentAmountStr(String(existing.current_amount));
+        setTargetDate(existing.target_date || '');
+        setCategory(existing.category || 'Emergency Fund');
+      }
+      setInitialLoading(false);
+      return;
+    }
+
+    setInitialLoading(true);
+    savingsService
+      .getGoalById(editId)
+      .then((res) => {
+        if (!res?.goal) return;
+        setName(res.goal.name);
+        setTargetAmountStr(String(res.goal.target_amount));
+        setCurrentAmountStr(String(res.goal.current_amount));
+        setTargetDate(res.goal.target_date || '');
+        setCategory(res.goal.category || 'Emergency Fund');
+      })
+      .catch((err) => toast.error(getErrorMessage(err, 'Failed to load goal details.')))
+      .finally(() => setInitialLoading(false));
+  }, [editId, isDemo, demoGoals]);
 
   const handleSave = async () => {
-    if (!user) return;
     const targetAmount = parseCurrencyInput(targetAmountStr);
     const currentAmount = parseCurrencyInput(currentAmountStr);
 
     if (!name.trim()) {
-      Alert.alert('Required Field', 'Please enter a name for your financial goal.');
+      toast.warning('Please enter a name for your financial goal.', 'Goal Name Required');
       return;
     }
     if (targetAmount <= 0) {
-      Alert.alert('Invalid Target', 'Please enter a target amount greater than zero.');
+      toast.warning('Please enter a target amount greater than zero.', 'Invalid Target');
       return;
     }
 
     try {
       setLoading(true);
-      await savingsService.createGoal(user.id, {
-        name: name.trim(),
-        targetAmount,
-        currentAmount,
-        targetDate: targetDate.trim() || undefined,
-        category,
-      });
+      if (isDemo) {
+        if (editId) {
+          updateDemoGoal(editId, {
+            name: name.trim(),
+            targetAmount,
+            currentAmount,
+            targetDate: targetDate.trim() || null,
+            category,
+          });
+        } else {
+          createDemoGoal({
+            name: name.trim(),
+            targetAmount,
+            currentAmount,
+            targetDate: targetDate.trim() || undefined,
+            category,
+          });
+        }
+      } else if (user) {
+        if (editId) {
+          await savingsService.updateGoal(editId, {
+            name: name.trim(),
+            targetAmount,
+            currentAmount,
+            targetDate: targetDate.trim() || null,
+            category,
+          });
+        } else {
+          await savingsService.createGoal(user.id, {
+            name: name.trim(),
+            targetAmount,
+            currentAmount,
+            targetDate: targetDate.trim() || undefined,
+            category,
+          });
+        }
+      }
 
+      toast.success(editId ? 'Savings goal updated.' : `Goal "${name.trim()}" created!`);
       router.back();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create savings goal.');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save savings goal.'));
     } finally {
       setLoading(false);
     }
   };
 
-  const currencySymbol = CURRENCY_SYMBOLS[profile?.currency || 'INR'] || '₹';
+  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="New Savings Goal" showBack />
-      <ScrollView
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Header title={isEditing ? 'Edit Savings Goal' : 'New Savings Goal'} showBack />
+      {initialLoading ? (
+        <LoadingState message="Loading goal details..." />
+      ) : (
+        <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + Spacing.xl },
@@ -156,16 +240,17 @@ export default function AddGoalScreen() {
         </View>
 
         <Button
-          title="Create Goal"
+          title={isEditing ? 'Update Goal' : 'Create Goal'}
           variant="primary"
           size="lg"
           loading={loading}
           onPress={handleSave}
-          leftIcon={<Check size={20} color="#0B0F14" />}
+          leftIcon={<Check size={20} color={colors.onPrimary} />}
           buttonStyle={{ marginTop: Spacing.xl }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 

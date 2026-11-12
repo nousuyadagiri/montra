@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { splitService } from '../../services/splitService';
-import { GroupMember } from '../../types/database';
-import { Text, Heading, Input, Button, Header, Card } from '../../components/ui';
+import { GroupMember, SupportedCurrency } from '../../types/database';
+import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
-import { parseCurrencyInput } from '../../utils/currency';
-import { Check, ArrowRight, HandCoins } from 'lucide-react-native';
+import { parseCurrencyInput, CURRENCY_SYMBOLS } from '../../utils/currency';
+import { HandCoins } from 'lucide-react-native';
 
 export default function SettleScreen() {
   const { groupId, payerId: initPayer, payeeId: initPayee, amount: initAmount } =
@@ -23,63 +26,120 @@ export default function SettleScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
+  const profile = useAuthStore((s) => s.profile);
+
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const getDemoGroupDetails = useDemoStore((s) => s.getDemoGroupDetails);
+  const recordDemoSettlement = useDemoStore((s) => s.recordDemoSettlement);
+
+  const isDemo = !user || (groupId?.startsWith('demo-') ?? false);
 
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const [groupCurrency, setGroupCurrency] = useState<SupportedCurrency>(
+    ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR'
+  );
   const [payerId, setPayerId] = useState<string>(initPayer || '');
   const [payeeId, setPayeeId] = useState<string>(initPayee || '');
   const [amountStr, setAmountStr] = useState<string>(initAmount || '');
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(Boolean(groupId && !isDemo));
+
+  const currencySymbol = CURRENCY_SYMBOLS[groupCurrency] || '₹';
 
   useEffect(() => {
-    if (!groupId || !user) return;
-    splitService.getGroupDetails(groupId, user.id).then((res) => {
-      setMembers(res.members);
-      if (res.members.length > 1) {
-        if (!payerId) setPayerId(res.members[0].id);
-        if (!payeeId) setPayeeId(res.members[1].id);
+    if (!groupId) {
+      setInitialLoading(false);
+      return;
+    }
+    if (isDemo) {
+      const details = getDemoGroupDetails(groupId);
+      if (details) {
+        setMembers(details.members);
+        setGroupCurrency((details.group.currency as SupportedCurrency) || 'INR');
+        if (details.members.length > 1) {
+          setPayerId((prev) => prev || details.members[0].id);
+          setPayeeId((prev) => prev || details.members[1].id);
+        }
       }
-    });
-  }, [groupId, user]);
+      setInitialLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
+    setInitialLoading(true);
+    splitService
+      .getGroupDetails(groupId, user.id)
+      .then((res) => {
+        setMembers(res.members);
+        setGroupCurrency((res.group.currency as SupportedCurrency) || 'INR');
+        if (res.members.length > 1) {
+          setPayerId((prev) => prev || res.members[0].id);
+          setPayeeId((prev) => prev || res.members[1].id);
+        }
+      })
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Failed to load group members.'));
+      })
+      .finally(() => setInitialLoading(false));
+  }, [groupId, user, isDemo, getDemoGroupDetails]);
 
   const handleSettle = async () => {
     if (!groupId) return;
     const amount = parseCurrencyInput(amountStr);
 
     if (amount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid settlement amount.');
+      toast.warning('Please enter a valid settlement amount.', 'Invalid Amount');
       return;
     }
-    if (payerId === payeeId) {
-      Alert.alert('Invalid Transfer', 'Payer and Payee cannot be the same member.');
+    if (!payerId || !payeeId || payerId === payeeId) {
+      toast.warning('Payer and Payee must be two different members.', 'Invalid Transfer');
       return;
     }
 
     try {
       setLoading(true);
-      await splitService.recordSettlement(groupId, {
-        payerId,
-        payeeId,
-        amount,
-        paymentMethod,
-        notes: notes.trim() || undefined,
-      });
+      if (isDemo) {
+        recordDemoSettlement(groupId, {
+          payerId,
+          payeeId,
+          amount,
+          paymentMethod,
+          notes: notes.trim() || undefined,
+        });
+      } else {
+        await splitService.recordSettlement(groupId, {
+          payerId,
+          payeeId,
+          amount,
+          paymentMethod,
+          notes: notes.trim() || undefined,
+        });
+      }
 
-      Alert.alert('Settled!', 'The debt settlement has been successfully recorded.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to record settlement.');
+      toast.success('Debt settlement recorded successfully.', 'Settled!');
+      router.back();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to record settlement.'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <Header title="Settle Balance" showBack />
-      <ScrollView
+      {initialLoading ? (
+        <LoadingState message="Loading group members..." />
+      ) : (
+        <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + Spacing.xl },
@@ -93,7 +153,7 @@ export default function SettleScreen() {
           </Text>
           <View style={styles.amountInputRow}>
             <Text variant="3xl" weight="bold" color="primary">
-              ₹
+              {currencySymbol}
             </Text>
             <Input
               placeholder="0.00"
@@ -218,11 +278,12 @@ export default function SettleScreen() {
           size="lg"
           loading={loading}
           onPress={handleSettle}
-          leftIcon={<HandCoins size={20} color="#0B0F14" />}
+          leftIcon={<HandCoins size={20} color={colors.onPrimary} />}
           buttonStyle={{ marginTop: Spacing.xl }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 

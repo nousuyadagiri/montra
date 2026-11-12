@@ -5,101 +5,183 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '../../store/themeStore';
+import {
+  Pencil,
+  Sun,
+  Moon,
+  Smartphone,
+  Wallet,
+  BarChart3,
+  PieChart,
+  Lock,
+  LogOut,
+  LogIn,
+  UserPlus,
+  RotateCcw,
+  ChevronRight,
+  Check,
+  X,
+} from 'lucide-react-native';
+import { useAppTheme, ThemeMode } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
 import { authService } from '../../services/authService';
+import { THEME_OPTIONS } from '../../theme/colors';
 import {
   Text,
   Heading,
-  Card,
+  Input,
   Button,
-  Badge,
+  DemoDataBadge,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
-import {
-  User,
-  Moon,
-  Sun,
-  Smartphone,
-  Bell,
-  Lock,
-  LogOut,
-  ChevronRight,
-  ShieldCheck,
-  CreditCard,
-  Coins,
-  Trash2,
-} from 'lucide-react-native';
+import { formatCurrency, CURRENCY_SYMBOLS } from '../../utils/currency';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
+import { SupportedCurrency } from '../../types/database';
 
-const THEMES = [
-  { label: 'System', value: 'system', icon: Smartphone },
-  { label: 'Dark', value: 'dark', icon: Moon },
-  { label: 'Light', value: 'light', icon: Sun },
-] as const;
+const CURRENCIES: SupportedCurrency[] = ['INR', 'USD', 'EUR', 'GBP'];
+
+const APPEARANCE_MODES: { label: string; value: ThemeMode; Icon: typeof Sun }[] = [
+  { label: 'Light', value: 'light', Icon: Sun },
+  { label: 'Dark', value: 'dark', Icon: Moon },
+  { label: 'System', value: 'system', Icon: Smartphone },
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark, mode, setMode } = useAppTheme();
+  const { colors, mode, themePalette, setMode, setThemePalette } = useAppTheme();
+
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const signOut = useAuthStore((s) => s.signOut);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
-  const [budgetAlerts, setBudgetAlerts] = useState(
-    profile?.notification_preferences?.budget_alerts ?? true
-  );
-  const [salaryReminders, setSalaryReminders] = useState(
-    profile?.notification_preferences?.salary_reminder ?? true
-  );
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const updateDemoProfile = useDemoStore((s) => s.updateDemoProfile);
+  const resetDemoData = useDemoStore((s) => s.resetDemoData);
+
+  const isDemo = !user;
+  const activeProfile = isDemo ? demoProfile : profile;
+  const currency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+
+  const displayName = isDemo
+    ? demoProfile.full_name
+    : (profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User');
+
+  const displayEmail = isDemo
+    ? 'Interactive Demo Workspace'
+    : (profile?.email || user?.email || '');
+
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p: string) => p[0]?.toUpperCase() || '')
+    .join('') || 'M';
+
+  // Edit Profile Modal state
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName, setEditName] = useState(displayName);
+  const [editCurrency, setEditCurrency] = useState<SupportedCurrency>(currency);
+  const [editSalary, setEditSalary] = useState(String(activeProfile?.monthly_salary || ''));
+  const [editSalaryDay, setEditSalaryDay] = useState(String(activeProfile?.salary_date || 1));
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const openEditModal = () => {
+    setEditName(displayName);
+    setEditCurrency(currency);
+    setEditSalary(activeProfile?.monthly_salary ? String(activeProfile.monthly_salary) : '');
+    setEditSalaryDay(String(activeProfile?.salary_date || 1));
+    setEditVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      toast.warning('Please enter your display name.', 'Name Required');
+      return;
+    }
+
+    const parsedSalary = Math.max(0, Number(editSalary.replace(/[^0-9.]/g, '')) || 0);
+    const parsedDay = Math.min(31, Math.max(1, parseInt(editSalaryDay, 10) || 1));
+
+    try {
+      setSavingProfile(true);
+      if (isDemo) {
+        updateDemoProfile({
+          full_name: trimmedName,
+          currency: editCurrency,
+          monthly_salary: parsedSalary,
+          salary_date: parsedDay,
+        });
+      } else if (user) {
+        await authService.updateProfile(user.id, {
+          full_name: trimmedName,
+          currency: editCurrency,
+          monthly_salary: parsedSalary,
+          salary_date: parsedDay,
+        });
+        await refreshProfile();
+      }
+      setEditVisible(false);
+      toast.success('Profile preferences updated.', 'Profile Saved');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Could not update your profile.'), 'Update Failed');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out of Montra?', [
+    Alert.alert('Sign Out', 'Are you sure you want to sign out of your account?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign Out',
         style: 'destructive',
         onPress: async () => {
-          await signOut();
-          router.replace('/(auth)/welcome');
+          try {
+            await signOut();
+            toast.info('Signed out safely. Switched back to welcome.', 'Signed Out');
+            router.replace('/(auth)/welcome');
+          } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Unable to sign out right now.'));
+          }
         },
       },
     ]);
   };
 
-  const handleUpdateCurrency = (newCurrency: 'INR' | 'USD' | 'EUR' | 'GBP') => {
-    if (!user) return;
+  const handleResetDemo = () => {
     Alert.alert(
-      'Update Currency',
-      `Set primary display currency to ${newCurrency}?`,
+      'Reset Demo Data',
+      'Restore all sample transactions, budgets, goals, and split groups back to defaults?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Confirm',
-          onPress: async () => {
-            try {
-              await authService.updateProfile(user.id, { currency: newCurrency });
-              await refreshProfile();
-              Alert.alert('Success', `Currency updated to ${newCurrency}`);
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to update currency');
-            }
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            resetDemoData();
+            toast.success('Sample transactions, budgets, and groups restored.', 'Demo Reset');
           },
         },
       ]
     );
   };
 
-  const initials = (profile?.full_name || 'U')
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
+  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
+  const tabHeight = 62 + bottomInset;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -107,217 +189,460 @@ export default function ProfileScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + Spacing['3xl'],
+            paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10),
+            paddingBottom: tabHeight + Spacing.xl,
           },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Heading level={1} style={styles.title}>
-          Profile & Settings
-        </Heading>
+        {/* 1. HEADER */}
+        <View style={styles.headerRow}>
+          <Heading level={2} style={styles.screenTitle}>
+            Profile
+          </Heading>
+          {isDemo ? <DemoDataBadge compact /> : null}
+        </View>
 
-        {/* User Card */}
-        <Card elevated style={styles.userCard}>
-          <View style={styles.userRow}>
-            <View style={[styles.avatarCircle, { backgroundColor: colors.primary }]}>
-              <Text variant="lg" weight="bold" style={{ color: '#0B0F14' }}>
+        {/* 2. HERO IDENTITY CARD */}
+        <View
+          style={[
+            styles.heroCard,
+            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          ]}
+        >
+          <View style={styles.heroTop}>
+            <View style={[styles.avatarCircle, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
+              <Text variant="lg" weight="extrabold" style={{ color: colors.primary }}>
                 {initials}
               </Text>
             </View>
 
-            <View style={styles.userInfo}>
-              <Text variant="base" weight="bold">
-                {profile?.full_name || 'User'}
+            <View style={styles.heroMeta}>
+              <Text variant="lg" weight="bold" numberOfLines={1}>
+                {displayName}
               </Text>
-              <Text variant="sm" color="secondary">
-                {profile?.email || user?.email || 'user@example.com'}
+              <Text variant="xs" color="secondary" numberOfLines={1} style={{ marginTop: 2 }}>
+                {displayEmail}
               </Text>
-              <Badge
-                label={`Currency: ${profile?.currency || 'INR'}`}
-                variant="primary"
-                size="sm"
-                style={{ marginTop: 4 }}
-              />
-            </View>
-          </View>
-        </Card>
-
-        {/* Salary & Finance Settings */}
-        <Text variant="sm" color="secondary" weight="semibold" style={styles.sectionTitle}>
-          FINANCES
-        </Text>
-        <Card elevated style={styles.settingsGroupCard}>
-          <TouchableOpacity
-            style={styles.settingItem}
-            onPress={() => router.push('/settings')}
-          >
-            <View style={styles.settingIconRow}>
-              <CreditCard size={20} color={colors.primary} />
-              <View style={styles.settingTextGroup}>
-                <Text variant="base" weight="medium">
-                  Salary & Accounts
-                </Text>
-                <Text variant="xs" color="secondary">
-                  Manage salary date, allocations & bank accounts
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={colors.secondaryText} />
-          </TouchableOpacity>
-
-          <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />
-
-          <View style={styles.currencyRow}>
-            <View style={styles.settingIconRow}>
-              <Coins size={20} color={colors.secondary} />
-              <Text variant="base" weight="medium" style={{ marginLeft: 8 }}>
-                Currency
-              </Text>
-            </View>
-
-            <View style={styles.currencyOptions}>
-              {(['INR', 'USD', 'EUR', 'GBP'] as const).map((curr) => {
-                const isSelected = (profile?.currency || 'INR') === curr;
-                return (
-                  <TouchableOpacity
-                    key={curr}
-                    onPress={() => handleUpdateCurrency(curr)}
-                    style={[
-                      styles.currPill,
-                      {
-                        backgroundColor: isSelected ? colors.primary : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="xs"
-                      weight={isSelected ? 'bold' : 'regular'}
-                      style={{ color: isSelected ? '#0B0F14' : colors.mainText }}
-                    >
-                      {curr}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </Card>
-
-        {/* Appearance & Theme */}
-        <Text variant="sm" color="secondary" weight="semibold" style={styles.sectionTitle}>
-          APPEARANCE
-        </Text>
-        <Card elevated style={styles.settingsGroupCard}>
-          <View style={styles.themeRow}>
-            {THEMES.map((t) => {
-              const isSelected = mode === t.value;
-              const IconComp = t.icon;
-              return (
-                <TouchableOpacity
-                  key={t.value}
-                  onPress={() => setMode(t.value as any)}
+              <View style={styles.badgeRow}>
+                <View style={[styles.metaChip, { backgroundColor: colors.elevatedSurface }]}>
+                  <Text variant="xs" weight="semibold" style={{ fontSize: 11 }}>
+                    {CURRENCY_SYMBOLS[currency]} {currency}
+                  </Text>
+                </View>
+                <View
                   style={[
-                    styles.themeBox,
-                    {
-                      backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
+                    styles.metaChip,
+                    { backgroundColor: isDemo ? colors.warningMuted : colors.successMuted },
                   ]}
                 >
-                  <IconComp
-                    size={20}
-                    color={isSelected ? colors.primary : colors.secondaryText}
-                  />
                   <Text
                     variant="xs"
-                    weight={isSelected ? 'bold' : 'medium'}
+                    weight="bold"
                     style={{
-                      color: isSelected ? colors.primary : colors.mainText,
-                      marginTop: 4,
+                      fontSize: 10.5,
+                      color: isDemo ? colors.warning : colors.positive,
                     }}
                   >
-                    {t.label}
+                    {isDemo ? 'DEMO SESSION' : 'CLOUD SYNCED'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={openEditModal}
+              style={[styles.editPillBtn, { backgroundColor: colors.primaryMuted }]}
+              accessibilityLabel="Edit profile"
+            >
+              <Pencil size={14} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Compact 2-Col Financial Snapshot */}
+          <View style={[styles.snapshotStrip, { backgroundColor: colors.elevatedSurface }]}>
+            <TouchableOpacity style={styles.snapshotItem} onPress={openEditModal} activeOpacity={0.75}>
+              <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                Monthly Salary
+              </Text>
+              <Text variant="sm" weight="bold" style={{ marginTop: 2 }}>
+                {formatCurrency(Number(activeProfile?.monthly_salary || 0), currency)}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={[styles.snapshotDivider, { backgroundColor: colors.border }]} />
+
+            <TouchableOpacity style={styles.snapshotItem} onPress={openEditModal} activeOpacity={0.75}>
+              <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                Salary Credit Day
+              </Text>
+              <Text variant="sm" weight="bold" style={{ marginTop: 2 }}>
+                Day {activeProfile?.salary_date || 1} of month
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Unauthenticated Auth CTA inside Hero */}
+          {isDemo ? (
+            <View style={styles.demoAuthRow}>
+              <Button
+                title="Sign In"
+                size="sm"
+                leftIcon={<LogIn size={15} color={colors.onPrimary} />}
+                onPress={() => router.push('/(auth)/login')}
+                buttonStyle={{ flex: 1 }}
+              />
+              <Button
+                title="Create Account"
+                variant="outline"
+                size="sm"
+                leftIcon={<UserPlus size={15} color={colors.primary} />}
+                onPress={() => router.push('/(auth)/register')}
+                buttonStyle={{ flex: 1 }}
+              />
+            </View>
+          ) : null}
+        </View>
+
+        {/* 3. APPEARANCE & PALETTE */}
+        <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+          APPEARANCE
+        </Text>
+        <View
+          style={[
+            styles.groupCard,
+            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          ]}
+        >
+          <View style={[styles.modeSegmented, { backgroundColor: colors.elevatedSurface }]}>
+            {APPEARANCE_MODES.map(({ label, value, Icon }) => {
+              const active = mode === value;
+              return (
+                <TouchableOpacity
+                  key={value}
+                  onPress={() => setMode(value)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.modeOption,
+                    active && { backgroundColor: colors.surface },
+                  ]}
+                >
+                  <Icon size={14} color={active ? colors.primary : colors.secondaryText} />
+                  <Text
+                    variant="xs"
+                    weight={active ? 'bold' : 'medium'}
+                    style={{ color: active ? colors.mainText : colors.secondaryText }}
+                  >
+                    {label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-        </Card>
 
-        {/* Notification Preferences */}
-        <Text variant="sm" color="secondary" weight="semibold" style={styles.sectionTitle}>
-          NOTIFICATIONS
-        </Text>
-        <Card elevated style={styles.settingsGroupCard}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchTextGroup}>
-              <Text variant="base" weight="medium">
-                Budget Alerts
-              </Text>
-              <Text variant="xs" color="secondary">
-                Receive warnings when spending exceeds 80% of limit
-              </Text>
-            </View>
-            <Switch
-              value={budgetAlerts}
-              onValueChange={setBudgetAlerts}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.mainText}
-            />
+          <View style={styles.paletteGrid}>
+            {THEME_OPTIONS.map((opt) => {
+              const selected = themePalette === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  onPress={() => setThemePalette(opt.id)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.palettePill,
+                    {
+                      backgroundColor: selected ? colors.primaryMuted : colors.elevatedSurface,
+                      borderColor: selected ? colors.primary : 'transparent',
+                    },
+                  ]}
+                >
+                  <View style={[styles.swatchDot, { backgroundColor: opt.previewColor }]}>
+                    <View style={[styles.swatchInner, { backgroundColor: opt.accentColor }]} />
+                  </View>
+                  <Text
+                    variant="xs"
+                    weight={selected ? 'bold' : 'medium'}
+                    style={{ color: selected ? colors.primary : colors.mainText, fontSize: 11.5 }}
+                  >
+                    {opt.name}
+                  </Text>
+                  {selected ? <Check size={12} color={colors.primary} strokeWidth={2.6} /> : null}
+                </TouchableOpacity>
+              );
+            })}
           </View>
+        </View>
 
-          <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />
-
-          <View style={styles.switchRow}>
-            <View style={styles.switchTextGroup}>
-              <Text variant="base" weight="medium">
-                Salary Reminders
-              </Text>
-              <Text variant="xs" color="secondary">
-                Remind on monthly salary arrival date
-              </Text>
-            </View>
-            <Switch
-              value={salaryReminders}
-              onValueChange={setSalaryReminders}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.mainText}
-            />
-          </View>
-        </Card>
-
-        {/* Security & Sign Out */}
-        <Text variant="sm" color="secondary" weight="semibold" style={styles.sectionTitle}>
-          SECURITY & SESSION
+        {/* 4. WORKSPACE & FINANCES */}
+        <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+          WORKSPACE & FINANCES
         </Text>
-        <Card elevated style={styles.settingsGroupCard}>
+        <View
+          style={[
+            styles.groupCard,
+            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          ]}
+        >
           <TouchableOpacity
-            style={styles.settingItem}
-            onPress={() => router.push('/(auth)/reset-password')}
+            style={styles.menuRow}
+            onPress={() => router.push('/settings')}
+            activeOpacity={0.7}
           >
-            <View style={styles.settingIconRow}>
-              <Lock size={20} color={colors.secondaryText} />
-              <Text variant="base" weight="medium" style={{ marginLeft: 8 }}>
-                Change Password
+            <View style={[styles.menuIconBox, { backgroundColor: colors.primaryMuted }]}>
+              <Wallet size={16} color={colors.primary} />
+            </View>
+            <View style={styles.menuTextCol}>
+              <Text variant="sm" weight="semibold">
+                Salary & Bank Accounts
+              </Text>
+              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                Manage accounts, balances & payday
               </Text>
             </View>
-            <ChevronRight size={18} color={colors.secondaryText} />
+            <ChevronRight size={17} color={colors.tertiaryText} />
           </TouchableOpacity>
 
-          <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.borderLight }]} />
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleSignOut}>
-            <View style={styles.settingIconRow}>
-              <LogOut size={20} color={colors.error} />
-              <Text variant="base" weight="semibold" style={{ color: colors.error, marginLeft: 8 }}>
-                Sign Out
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => router.push('/analytics')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: colors.successMuted }]}>
+              <BarChart3 size={16} color={colors.positive} />
+            </View>
+            <View style={styles.menuTextCol}>
+              <Text variant="sm" weight="semibold">
+                Analytics & Reports
+              </Text>
+              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                Trends, breakdowns & CSV export
               </Text>
             </View>
+            <ChevronRight size={17} color={colors.tertiaryText} />
           </TouchableOpacity>
-        </Card>
+
+          <View style={[styles.rowDivider, { backgroundColor: colors.borderLight }]} />
+
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => router.push('/(tabs)/budgets')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: colors.warningMuted }]}>
+              <PieChart size={16} color={colors.warning} />
+            </View>
+            <View style={styles.menuTextCol}>
+              <Text variant="sm" weight="semibold">
+                Budgets & Savings Goals
+              </Text>
+              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                Track limits & financial milestones
+              </Text>
+            </View>
+            <ChevronRight size={17} color={colors.tertiaryText} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 5. ACCOUNT & SECURITY */}
+        <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+          ACCOUNT & SECURITY
+        </Text>
+        <View
+          style={[
+            styles.groupCard,
+            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          ]}
+        >
+          {isDemo ? (
+            <>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={handleResetDemo}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconBox, { backgroundColor: colors.warningMuted }]}>
+                  <RotateCcw size={16} color={colors.warning} />
+                </View>
+                <View style={styles.menuTextCol}>
+                  <Text variant="sm" weight="semibold">
+                    Reset Demo Data
+                  </Text>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                    Restore original sample entries & balances
+                  </Text>
+                </View>
+                <ChevronRight size={17} color={colors.tertiaryText} />
+              </TouchableOpacity>
+
+              <View style={[styles.rowDivider, { backgroundColor: colors.borderLight }]} />
+
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={() => router.push('/(auth)/login')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconBox, { backgroundColor: colors.primaryMuted }]}>
+                  <LogIn size={16} color={colors.primary} />
+                </View>
+                <View style={styles.menuTextCol}>
+                  <Text variant="sm" weight="semibold" style={{ color: colors.primary }}>
+                    Sign In to Sync Cloud Data
+                  </Text>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                    Switch from Demo to your personal ledger
+                  </Text>
+                </View>
+                <ChevronRight size={17} color={colors.primary} />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={() => router.push('/(auth)/forgot-password')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconBox, { backgroundColor: colors.secondaryMuted }]}>
+                  <Lock size={16} color={colors.secondary} />
+                </View>
+                <View style={styles.menuTextCol}>
+                  <Text variant="sm" weight="semibold">
+                    Reset Password
+                  </Text>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                    Send recovery link to {profile?.email || user?.email}
+                  </Text>
+                </View>
+                <ChevronRight size={17} color={colors.tertiaryText} />
+              </TouchableOpacity>
+
+              <View style={[styles.rowDivider, { backgroundColor: colors.borderLight }]} />
+
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={handleSignOut}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconBox, { backgroundColor: colors.errorMuted }]}>
+                  <LogOut size={16} color={colors.error} />
+                </View>
+                <View style={styles.menuTextCol}>
+                  <Text variant="sm" weight="semibold" style={{ color: colors.error }}>
+                    Sign Out
+                  </Text>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                    Log out and return to welcome or demo
+                  </Text>
+                </View>
+                <ChevronRight size={17} color={colors.error} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </ScrollView>
+
+      {/* EDIT PROFILE MODAL */}
+      <Modal
+        visible={editVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.borderLight,
+                paddingBottom: Math.max(insets.bottom, Spacing.lg),
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Heading level={3}>Edit Profile</Heading>
+              <TouchableOpacity
+                onPress={() => setEditVisible(false)}
+                style={[styles.closeBtn, { backgroundColor: colors.elevatedSurface }]}
+              >
+                <X size={18} color={colors.mainText} />
+              </TouchableOpacity>
+            </View>
+
+            <Input
+              label="Full Name"
+              placeholder="Your name"
+              value={editName}
+              onChangeText={setEditName}
+            />
+
+            <Text variant="xs" weight="semibold" color="secondary" style={{ marginBottom: 6 }}>
+              DEFAULT CURRENCY
+            </Text>
+            <View style={styles.currencyRow}>
+              {CURRENCIES.map((curr) => {
+                const selected = editCurrency === curr;
+                return (
+                  <TouchableOpacity
+                    key={curr}
+                    onPress={() => setEditCurrency(curr)}
+                    style={[
+                      styles.currencyPill,
+                      {
+                        backgroundColor: selected ? colors.primaryMuted : colors.elevatedSurface,
+                        borderColor: selected ? colors.primary : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Text
+                      variant="xs"
+                      weight={selected ? 'bold' : 'medium'}
+                      style={{ color: selected ? colors.primary : colors.mainText }}
+                    >
+                      {CURRENCY_SYMBOLS[curr]} {curr}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.twoColInputs}>
+              <View style={{ flex: 1 }}>
+                <Input
+                  label="Monthly Salary"
+                  placeholder="0"
+                  keyboardType="decimal-pad"
+                  value={editSalary}
+                  onChangeText={setEditSalary}
+                />
+              </View>
+              <View style={{ width: 110 }}>
+                <Input
+                  label="Pay Day (1-31)"
+                  placeholder="1"
+                  keyboardType="number-pad"
+                  value={editSalaryDay}
+                  onChangeText={setEditSalaryDay}
+                />
+              </View>
+            </View>
+
+            <Button
+              title="Save Changes"
+              size="lg"
+              loading={savingProfile}
+              onPress={handleSaveProfile}
+              leftIcon={<Check size={18} color={colors.onPrimary} />}
+              buttonStyle={{ marginTop: Spacing.xs }}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -329,95 +654,188 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.lg,
   },
-  title: {
-    marginBottom: Spacing.lg,
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
-  userCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+  screenTitle: {
+    fontSize: 22,
+    letterSpacing: -0.4,
   },
-  userRow: {
+  heroCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.md,
   },
   avatarCircle: {
     width: 54,
     height: 54,
     borderRadius: 27,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
   },
-  userInfo: {
+  heroMeta: {
     flex: 1,
-    gap: 2,
   },
-  sectionTitle: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-    marginLeft: 4,
-    letterSpacing: 0.5,
-  },
-  settingsGroupCard: {
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  settingIconRow: {
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
   },
-  settingTextGroup: {
-    marginLeft: Spacing.md,
-    gap: 2,
+  metaChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
   },
-  itemDivider: {
-    height: 1,
-    marginVertical: Spacing.xs,
-  },
-  currencyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  editPillBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    justifyContent: 'center',
   },
-  currencyOptions: {
+  snapshotStrip: {
     flexDirection: 'row',
-    gap: Spacing.xs,
+    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
   },
-  currPill: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+  snapshotItem: {
+    flex: 1,
   },
-  themeRow: {
+  snapshotDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 28,
+    marginHorizontal: Spacing.md,
+  },
+  demoAuthRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
-  themeBox: {
+  sectionHeading: {
+    fontSize: 10.5,
+    letterSpacing: 1.1,
+    marginBottom: Spacing.xs,
+    marginLeft: 4,
+  },
+  groupCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  modeSegmented: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
+  },
+  modeOption: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1.5,
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
   },
-  switchRow: {
+  paletteGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingTop: 2,
+  },
+  palettePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  swatchDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchInner: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  menuIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuTextCol: {
+    flex: 1,
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 48,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.lg,
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.md,
   },
-  switchTextGroup: {
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  currencyPill: {
     flex: 1,
-    marginRight: Spacing.md,
-    gap: 2,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  twoColInputs: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
   },
 });
-

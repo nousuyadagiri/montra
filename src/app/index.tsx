@@ -1,41 +1,66 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { Image } from 'expo-image';
 import { useAuthStore } from '../store/authStore';
-import { useAppTheme } from '../store/themeStore';
-import { Text, Heading } from '../components/ui';
-import { Wallet } from 'lucide-react-native';
+import { Text } from '../components/ui';
 import { Spacing } from '../theme/tokens';
+
+const SPLASH_GIF = require('../../assets/images/splash-animation.gif');
+const SPLASH_BACKGROUND = '#070D19';
+const SPLASH_MIN_DURATION_MS = 2100;
+const SPLASH_MAX_WAIT_MS = 5000;
 
 export default function RootIndex() {
   const router = useRouter();
-  const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const isInitialized = useAuthStore((s) => s.isInitialized);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const [minDurationDone, setMinDurationDone] = useState(false);
+  const [maxWaitElapsed, setMaxWaitElapsed] = useState(false);
+  const [fadeAnim] = useState(() => new Animated.Value(1));
+  const hasNavigatedRef = useRef(false);
 
   useEffect(() => {
-    if (!isInitialized) return;
+    const minTimer = setTimeout(() => setMinDurationDone(true), SPLASH_MIN_DURATION_MS);
+    const maxTimer = setTimeout(() => setMaxWaitElapsed(true), SPLASH_MAX_WAIT_MS);
+    return () => {
+      clearTimeout(minTimer);
+      clearTimeout(maxTimer);
+    };
+  }, []);
 
-    if (user) {
-      router.replace('/(tabs)');
-    } else {
-      router.replace('/(auth)/welcome');
-    }
-  }, [user, isInitialized]);
+  useEffect(() => {
+    const readyToRoute = (isInitialized && minDurationDone) || maxWaitElapsed;
+    if (!readyToRoute || hasNavigatedRef.current) return;
+
+    hasNavigatedRef.current = true;
+    const destination = user ? '/(tabs)' : '/(auth)/welcome';
+
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      router.replace(destination);
+    });
+  }, [fadeAnim, isInitialized, maxWaitElapsed, minDurationDone, router, user]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.logoBadge, { backgroundColor: colors.primaryMuted }]}>
-        <Wallet size={48} color={colors.primary} />
-      </View>
-      <Heading level={1} align="center" style={styles.title}>
-        MONTRA
-      </Heading>
-      <Text variant="sm" color="secondary" align="center" style={styles.subtitle}>
-        Personal Finance & Expense Sharing
-      </Text>
-      <ActivityIndicator size="small" color={colors.primary} style={styles.spinner} />
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <Image
+          source={SPLASH_GIF}
+          style={styles.gif}
+          contentFit="contain"
+          autoplay
+          accessibilityLabel="Montra animated splash logo"
+        />
+        <Text variant="sm" align="center" style={styles.tagline}>
+          Personal Wealth & Expense Sharing
+        </Text>
+      </Animated.View>
     </View>
   );
 }
@@ -43,26 +68,24 @@ export default function RootIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: SPLASH_BACKGROUND,
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.xl,
   },
-  logoBadge: {
-    width: 88,
-    height: 88,
-    borderRadius: 28,
+  content: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.lg,
+    width: '100%',
   },
-  title: {
-    letterSpacing: 2,
-    marginBottom: Spacing.xs,
+  gif: {
+    width: 280,
+    height: 280,
   },
-  subtitle: {
-    maxWidth: 260,
-  },
-  spinner: {
-    marginTop: Spacing.xl,
+  tagline: {
+    color: '#9BA9F2',
+    letterSpacing: 0.6,
+    marginTop: Spacing.xs,
+    opacity: 0.9,
   },
 });

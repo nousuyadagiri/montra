@@ -4,33 +4,48 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { transactionService } from '../../services/transactionService';
-import { Account, TransactionCategory } from '../../types/database';
+import { Account, TransactionCategory, SupportedCurrency } from '../../types/database';
 import {
   Text,
-  Heading,
   Input,
   Button,
   Header,
   Card,
+  LoadingState,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
-import { Check, Tag, CreditCard, Calendar } from 'lucide-react-native';
+import { Check, CreditCard, Calendar } from 'lucide-react-native';
 
 export default function AddTransactionScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: 'income' | 'expense' | 'transfer' }>();
+  const params = useLocalSearchParams<{ type?: 'income' | 'expense' | 'transfer'; editId?: string }>();
+  const editId = params.editId;
+  const isEditing = Boolean(editId);
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+
+  const demoCategories = useDemoStore((s) => s.demoCategories);
+  const demoAccounts = useDemoStore((s) => s.demoAccounts);
+  const demoTransactions = useDemoStore((s) => s.demoTransactions);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const addDemoTransaction = useDemoStore((s) => s.addDemoTransaction);
+  const updateDemoTransaction = useDemoStore((s) => s.updateDemoTransaction);
+
+  const isDemo = !user;
 
   const [type, setType] = useState<'income' | 'expense' | 'transfer'>(
     params.type || 'expense'
@@ -47,77 +62,179 @@ export default function AddTransactionScreen() {
   const [categories, setCategories] = useState<TransactionCategory[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(!isDemo);
 
+  // Prefill existing transaction in Edit mode
   useEffect(() => {
-    if (!user) return;
+    if (!editId) return;
+    if (isDemo) {
+      const existing = demoTransactions.find((t) => t.id === editId);
+      if (existing) {
+        setType(existing.type);
+        setTitle(existing.title);
+        setAmountStr(String(existing.amount));
+        setSelectedCategoryId(existing.category_id || null);
+        setSelectedAccountId(existing.account_id || null);
+        setSelectedToAccountId(existing.to_account_id || null);
+        setPaymentMethod(existing.payment_method || 'UPI');
+        setNotes(existing.notes || '');
+        setDate(existing.date);
+      }
+      return;
+    }
+
+    transactionService
+      .getTransactionById(editId)
+      .then((existing) => {
+        if (!existing) return;
+        setType(existing.type);
+        setTitle(existing.title);
+        setAmountStr(String(existing.amount));
+        setSelectedCategoryId(existing.category_id || null);
+        setSelectedAccountId(existing.account_id || null);
+        setSelectedToAccountId(existing.to_account_id || null);
+        setPaymentMethod(existing.payment_method || 'UPI');
+        setNotes(existing.notes || '');
+        setDate(existing.date);
+      })
+      .catch((err) => toast.error(getErrorMessage(err, 'Failed to load transaction details.')));
+  }, [editId, isDemo, demoTransactions]);
+
+  // Load categories & accounts for either Demo or Real mode
+  useEffect(() => {
+    if (isDemo) {
+      const filteredCats =
+        type === 'transfer'
+          ? demoCategories
+          : demoCategories.filter((c) => c.type === type);
+      setCategories(filteredCats);
+      if (filteredCats.length > 0 && !filteredCats.some((c) => c.id === selectedCategoryId)) {
+        setSelectedCategoryId(filteredCats[0].id);
+      }
+      setAccounts(demoAccounts);
+      const defaultAcc = demoAccounts.find((a) => a.is_default) || demoAccounts[0];
+      if (defaultAcc) {
+        setSelectedAccountId((prev) => prev || defaultAcc.id);
+      }
+      if (demoAccounts.length > 1) {
+        setSelectedToAccountId((prev) => prev || demoAccounts[1].id);
+      }
+      setInitialLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
     Promise.all([
       transactionService.getCategories(user.id, type === 'transfer' ? undefined : type),
       transactionService.getAccounts(user.id),
-    ]).then(([cats, accs]) => {
-      setCategories(cats);
-      if (cats.length > 0 && !selectedCategoryId) {
-        setSelectedCategoryId(cats[0].id);
-      }
-      setAccounts(accs);
-      const defaultAcc = accs.find((a) => a.is_default) || accs[0];
-      if (defaultAcc && !selectedAccountId) {
-        setSelectedAccountId(defaultAcc.id);
-      }
-      if (accs.length > 1 && !selectedToAccountId) {
-        setSelectedToAccountId(accs[1].id);
-      }
-    });
-  }, [user, type]);
+    ])
+      .then(([cats, accs]) => {
+        setCategories(cats);
+        if (cats.length > 0 && !cats.some((c) => c.id === selectedCategoryId)) {
+          setSelectedCategoryId(cats[0].id);
+        }
+        setAccounts(accs);
+        const defaultAcc = accs.find((a) => a.is_default) || accs[0];
+        if (defaultAcc) {
+          setSelectedAccountId((prev) => prev || defaultAcc.id);
+        }
+        if (accs.length > 1) {
+          setSelectedToAccountId((prev) => prev || accs[1].id);
+        }
+      })
+      .catch((err) => toast.error(getErrorMessage(err, 'Unable to load categories and accounts.')))
+      .finally(() => setInitialLoading(false));
+  }, [user, isDemo, type, demoCategories, demoAccounts, selectedCategoryId]);
 
   const handleSave = async () => {
-    if (!user) return;
     const amount = parseCurrencyInput(amountStr);
 
     if (!title.trim()) {
-      Alert.alert('Required Field', 'Please provide a title for this transaction.');
+      toast.warning('Please provide a title for this transaction.', 'Title Required');
       return;
     }
     if (amount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than zero.');
+      toast.warning('Please enter a valid amount greater than zero.', 'Invalid Amount');
       return;
     }
     if (type !== 'transfer' && !selectedCategoryId) {
-      Alert.alert('Required Field', 'Please select a category.');
+      toast.warning('Please select a category.', 'Category Required');
+      return;
+    }
+    if (type === 'transfer' && selectedAccountId && selectedAccountId === selectedToAccountId) {
+      toast.warning('Source and destination accounts must be different.', 'Invalid Transfer');
       return;
     }
 
+    const payload = {
+      title: title.trim(),
+      amount,
+      type,
+      categoryId: type === 'transfer' ? null : selectedCategoryId,
+      accountId: selectedAccountId,
+      toAccountId: type === 'transfer' ? selectedToAccountId : null,
+      date,
+      paymentMethod,
+      notes: notes.trim() || undefined,
+    };
+
     try {
       setLoading(true);
-      await transactionService.createTransaction(user.id, {
-        title: title.trim(),
-        amount,
-        type,
-        categoryId: type === 'transfer' ? null : selectedCategoryId,
-        accountId: selectedAccountId,
-        toAccountId: type === 'transfer' ? selectedToAccountId : null,
-        date,
-        paymentMethod,
-        notes: notes.trim() || undefined,
-      });
+      if (isDemo) {
+        if (editId) {
+          updateDemoTransaction(editId, payload);
+        } else {
+          addDemoTransaction(payload);
+        }
+      } else if (user) {
+        if (editId) {
+          await transactionService.updateTransaction(editId, payload);
+        } else {
+          await transactionService.createTransaction(user.id, payload);
+        }
+      }
 
+      toast.success(
+        editId
+          ? 'Transaction updated.'
+          : `${type === 'income' ? 'Income' : type === 'transfer' ? 'Transfer' : 'Expense'} saved!`
+      );
       router.back();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to save transaction.');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save transaction.'));
     } finally {
       setLoading(false);
     }
   };
 
-  const currencySymbol = CURRENCY_SYMBOLS[profile?.currency || 'INR'] || '₹';
+  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
+
+  const headerTitle = isEditing
+    ? 'Edit Transaction'
+    : type === 'income'
+    ? 'Add Income'
+    : type === 'transfer'
+    ? 'Add Transfer'
+    : 'Add Expense';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <Header
-        title={type === 'income' ? 'Add Income' : type === 'transfer' ? 'Add Transfer' : 'Add Expense'}
+        title={headerTitle}
         showBack
       />
 
-      <ScrollView
+      {initialLoading ? (
+        <LoadingState message="Loading accounts & categories..." />
+      ) : (
+        <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + Spacing.xl },
@@ -144,7 +261,7 @@ export default function AddTransactionScreen() {
                   variant="sm"
                   weight={isSelected ? 'bold' : 'medium'}
                   style={{
-                    color: isSelected ? '#0B0F14' : colors.secondaryText,
+                    color: isSelected ? colors.onPrimary : colors.secondaryText,
                     textTransform: 'capitalize',
                   }}
                 >
@@ -367,11 +484,12 @@ export default function AddTransactionScreen() {
           size="lg"
           loading={loading}
           onPress={handleSave}
-          leftIcon={<Check size={20} color="#0B0F14" />}
+          leftIcon={<Check size={20} color={colors.onPrimary} />}
           buttonStyle={{ marginTop: Spacing.lg }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 

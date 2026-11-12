@@ -38,9 +38,9 @@ export const Card: React.FC<CardProps> = ({
     backgroundColor: getBackgroundColor(),
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: isDark ? colors.border : '#EDF2F7',
-    ...(elevated && !isDark ? Shadows.md : {}),
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...(elevated && !isDark ? Shadows.sm : {}),
   };
 
   if (onPress) {

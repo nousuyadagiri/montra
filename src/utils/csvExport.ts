@@ -1,11 +1,13 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { Transaction } from '../types/database';
+import { toast } from '../store/toastStore';
+import { getErrorMessage } from './errors';
 
 export async function exportTransactionsToCSV(transactions: Transaction[]): Promise<void> {
   if (transactions.length === 0) {
-    Alert.alert('No Transactions', 'There are no transactions available to export.');
+    toast.info('There are no transactions available to export.', 'No Transactions');
     return;
   }
 
@@ -25,7 +27,6 @@ export async function exportTransactionsToCSV(transactions: Transaction[]): Prom
 
   try {
     if (Platform.OS === 'web') {
-      // Browser download
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -34,6 +35,7 @@ export async function exportTransactionsToCSV(transactions: Transaction[]): Prom
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      toast.success('CSV statement downloaded.', 'Export Complete');
       return;
     }
 
@@ -51,9 +53,9 @@ export async function exportTransactionsToCSV(transactions: Transaction[]): Prom
         UTI: 'public.comma-separated-values-text',
       });
     } else {
-      Alert.alert('Exported', `File saved to ${filename}`);
+      toast.success(`CSV saved to ${filename}`, 'Export Complete');
     }
-  } catch (error: any) {
-    Alert.alert('Export Failed', error?.message || 'Failed to export CSV.');
+  } catch (error: unknown) {
+    toast.error(getErrorMessage(error, 'Failed to export CSV.'), 'Export Failed');
   }
 }

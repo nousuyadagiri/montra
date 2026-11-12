@@ -21,9 +21,11 @@ export interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   leftIcon?: React.ReactNode;
+  icon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
   buttonStyle?: ViewStyle;
+  style?: ViewStyle;
   textStyle?: TextStyle;
   onPress?: (e?: any) => void | Promise<any>;
   accessibilityLabel?: string;
@@ -36,14 +38,18 @@ export const Button: React.FC<ButtonProps> = ({
   loading = false,
   disabled = false,
   leftIcon,
+  icon,
   rightIcon,
   fullWidth = true,
   buttonStyle,
+  style,
   textStyle,
   onPress,
   accessibilityLabel,
 }) => {
   const { colors, isDark } = useAppTheme();
+  const resolvedLeftIcon = leftIcon || icon;
+  const resolvedContainerStyle = [buttonStyle, style];
 
   const getContainerStyle = (): ViewStyle => {
     let bg = colors.primary;
@@ -71,7 +77,7 @@ export const Button: React.FC<ButtonProps> = ({
     }
 
     if (disabled || loading) {
-      bg = isDark ? '#1E293B' : '#E2E8F0';
+      bg = isDark ? colors.elevatedSurface : colors.softAccent;
       borderColor = 'transparent';
     }
 
@@ -101,9 +107,9 @@ export const Button: React.FC<ButtonProps> = ({
     }
     switch (variant) {
       case 'primary':
-        return isDark ? '#0B0F14' : '#FFFFFF';
+        return colors.onPrimary;
       case 'secondary':
-        return '#FFFFFF';
+        return colors.onSecondary;
       case 'outline':
         return colors.mainText;
       case 'ghost':
@@ -111,7 +117,7 @@ export const Button: React.FC<ButtonProps> = ({
       case 'danger':
         return '#FFFFFF';
       default:
-        return '#FFFFFF';
+        return colors.onPrimary;
     }
   };
 
@@ -122,7 +128,7 @@ export const Button: React.FC<ButtonProps> = ({
       activeOpacity={0.75}
       disabled={disabled || loading}
       onPress={onPress}
-      style={[getContainerStyle(), buttonStyle]}
+      style={[getContainerStyle(), buttonStyle, style]}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || title}
       accessibilityState={{ disabled: disabled || loading, busy: loading }}
@@ -131,7 +137,7 @@ export const Button: React.FC<ButtonProps> = ({
         <ActivityIndicator size="small" color={getTextColor()} />
       ) : (
         <View style={styles.contentRow}>
-          {leftIcon ? <View style={styles.leftIconContainer}>{leftIcon}</View> : null}
+          {resolvedLeftIcon ? <View style={styles.leftIconContainer}>{resolvedLeftIcon}</View> : null}
           <Text
             variant={fontSize}
             weight="semibold"

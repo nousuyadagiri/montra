@@ -1,66 +1,88 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Platform,
+  Alert,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PieChart, Plus, Target, Pencil, Trash2 } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { useSyncStore } from '../../store/syncStore';
 import { budgetService, BudgetWithSpending } from '../../services/budgetService';
 import { savingsService } from '../../services/savingsService';
-import { SavingsGoal } from '../../types/database';
+import { SavingsGoal, SupportedCurrency } from '../../types/database';
 import {
   Text,
   Heading,
-  CurrencyText,
-  Button,
-  Card,
-  Badge,
-  LoadingState,
+  BudgetProgressCard,
+  SavingsGoalCard,
+  DemoDataBadge,
   EmptyState,
+  ErrorState,
+  ListSkeleton,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
-import {
-  PieChart,
-  Plus,
-  Target,
-  AlertTriangle,
-  CheckCircle2,
-  TrendingUp,
-  ChevronRight,
-  ShieldAlert,
-} from 'lucide-react-native';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 
 export default function BudgetsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+  const syncTick = useSyncStore((s) => s.syncTick);
 
-  const [budgets, setBudgets] = useState<BudgetWithSpending[]>([]);
-  const [goals, setGoals] = useState<SavingsGoal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const demoBudgets = useDemoStore((s) => s.demoBudgets);
+  const demoTransactions = useDemoStore((s) => s.demoTransactions);
+  const demoGoals = useDemoStore((s) => s.demoGoals);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const getDemoBudgets = useDemoStore((s) => s.getDemoBudgets);
+  const deleteDemoBudget = useDemoStore((s) => s.deleteDemoBudget);
+
+  const [activeTab, setActiveTab] = useState<'budgets' | 'goals'>('budgets');
+  const [realBudgets, setRealBudgets] = useState<BudgetWithSpending[]>([]);
+  const [realGoals, setRealGoals] = useState<SavingsGoal[]>([]);
+  const [initialLoading, setInitialLoading] = useState(Boolean(user));
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  const isDemo = !user;
 
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setInitialLoading(false);
+      setRefreshing(false);
+      setFetchError(null);
+      return;
+    }
     try {
+      setFetchError(null);
       const [bData, gData] = await Promise.all([
         budgetService.getBudgets(user.id),
         savingsService.getGoals(user.id),
       ]);
-      setBudgets(bData);
-      setGoals(gData);
-    } catch (err) {
-      console.warn('Failed to fetch budgets/goals:', err);
+      hasLoadedRef.current = true;
+      setRealBudgets(bData);
+      setRealGoals(gData);
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Unable to load budgets and savings goals.');
+      setFetchError(msg);
+      if (hasLoadedRef.current) {
+        toast.error(msg, 'Load Failed');
+      }
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
       setRefreshing(false);
     }
   }, [user]);
@@ -71,18 +93,72 @@ export default function BudgetsScreen() {
     }, [fetchData])
   );
 
+  useEffect(() => {
+    if (syncTick > 0) {
+      fetchData();
+    }
+  }, [syncTick, fetchData]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
   };
 
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <LoadingState message="Tracking your budgets and financial goals..." />
-      </View>
+  void demoBudgets;
+  void demoTransactions;
+  const demoBudgetsComputed = getDemoBudgets();
+
+  const activeBudgets = isDemo ? demoBudgetsComputed : realBudgets;
+  const activeGoals = isDemo ? demoGoals : realGoals;
+  const activeProfile = isDemo ? demoProfile : profile;
+  const currency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+
+  // Budget calculations
+  const totalBudgetLimit = useMemo(
+    () => activeBudgets.reduce((sum, b) => sum + (b.total_limit || 0), 0),
+    [activeBudgets]
+  );
+
+  const totalBudgetSpent = useMemo(
+    () => activeBudgets.reduce((sum, b) => sum + (b.totalSpent || 0), 0),
+    [activeBudgets]
+  );
+
+  const remainingBudget = totalBudgetLimit - totalBudgetSpent;
+  const overallProgress = totalBudgetLimit > 0 ? totalBudgetSpent / totalBudgetLimit : 0;
+  const overallPercentage = Math.round(overallProgress * 100);
+
+  const handleDeleteBudget = (budgetId: string, budgetName: string) => {
+    Alert.alert(
+      'Delete Budget',
+      `Are you sure you want to delete "${budgetName}"? This will remove the budget and its category limits.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (isDemo) {
+                deleteDemoBudget(budgetId);
+              } else {
+                await budgetService.deleteBudget(budgetId);
+                fetchData();
+              }
+              toast.success(`Budget "${budgetName}" deleted.`);
+            } catch (err: unknown) {
+              toast.error(getErrorMessage(err, 'Failed to delete budget.'));
+            }
+          },
+        },
+      ]
     );
-  }
+  };
+
+  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
+  const tabHeight = 62 + bottomInset;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -90,8 +166,8 @@ export default function BudgetsScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + Spacing['3xl'],
+            paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
+            paddingBottom: tabHeight + Spacing.xl,
           },
         ]}
         refreshControl={
@@ -103,235 +179,318 @@ export default function BudgetsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Heading level={1}>Budgets & Goals</Heading>
+        {/* 1. TOP HEADER */}
+        <View style={styles.topHeader}>
+          <View style={styles.titleWithBadge}>
+            <Heading level={2} style={styles.screenTitle}>Budgets & Goals</Heading>
+            {isDemo ? <DemoDataBadge compact /> : null}
+          </View>
+
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/budgets/add')}
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              onPress={() => router.push(activeTab === 'budgets' ? '/budgets/add' : '/goals/add')}
+              accessibilityLabel={activeTab === 'budgets' ? 'Add Budget' : 'Add Goal'}
             >
-              <Plus size={18} color="#0B0F14" />
-              <Text variant="xs" weight="bold" style={{ color: '#0B0F14', marginLeft: 4 }}>
-                Budget
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => router.push('/goals/add')}
-            >
-              <Target size={18} color={colors.primary} />
-              <Text variant="xs" weight="bold" color="primary" style={{ marginLeft: 4 }}>
-                Goal
+              <Plus size={15} color={colors.onPrimary} strokeWidth={2.5} />
+              <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, marginLeft: 4 }}>
+                {activeTab === 'budgets' ? 'New Budget' : 'New Goal'}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Section 1: Active Monthly Budgets */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionIconRow}>
-            <PieChart size={20} color={colors.primary} />
-            <Text variant="md" weight="bold">
-              Monthly Budgets
-            </Text>
-          </View>
-          <Text variant="xs" color="secondary">
-            {budgets.length} Active
-          </Text>
-        </View>
-
-        {budgets.length === 0 ? (
-          <Card elevated style={styles.emptyCard}>
-            <EmptyState
-              icon={<PieChart size={40} color={colors.primary} />}
-              title="No Budgets Created"
-              description="Establish monthly spending caps to avoid overspending and grow your net worth."
-              actionTitle="Create Monthly Budget"
-              onAction={() => router.push('/budgets/add')}
+        {/* 2. TAB SWITCHER */}
+        <View
+          style={[
+            styles.tabSwitcher,
+            { backgroundColor: colors.elevatedSurface, borderColor: colors.borderLight },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.tabBtn,
+              activeTab === 'budgets' && {
+                backgroundColor: colors.surface,
+                borderColor: colors.borderLight,
+                borderWidth: StyleSheet.hairlineWidth,
+              },
+            ]}
+            onPress={() => setActiveTab('budgets')}
+            activeOpacity={0.7}
+          >
+            <PieChart
+              size={15}
+              color={activeTab === 'budgets' ? colors.primary : colors.secondaryText}
             />
-          </Card>
-        ) : (
-          budgets.map((b) => {
-            const isExceeded = b.totalSpent > b.total_limit;
-            const isApproaching = !isExceeded && b.spentPercentage >= 80;
-            const barWidth = Math.min(100, Math.max(3, b.spentPercentage));
-
-            return (
-              <Card key={b.id} elevated style={styles.budgetCard}>
-                <View style={styles.budgetHeader}>
-                  <View>
-                    <Text variant="base" weight="bold">
-                      {b.name}
-                    </Text>
-                    <Text variant="xs" color="secondary">
-                      {b.period.toUpperCase()} • {b.month ? `Month ${b.month}` : ''} {b.year}
-                    </Text>
-                  </View>
-
-                  <Badge
-                    label={isExceeded ? 'Exceeded' : isApproaching ? 'Warning' : 'On Track'}
-                    variant={isExceeded ? 'error' : isApproaching ? 'warning' : 'success'}
-                    size="sm"
-                  />
-                </View>
-
-                {/* Main Progress Bar */}
-                <View style={styles.progressSection}>
-                  <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        {
-                          width: `${barWidth}%`,
-                          backgroundColor: isExceeded
-                            ? colors.error
-                            : isApproaching
-                            ? colors.warning
-                            : colors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.budgetNumbersRow}>
-                    <Text variant="xs" color="secondary">
-                      Spent:{' '}
-                      <Text variant="xs" weight="bold" color="main">
-                        {formatCurrency(b.totalSpent, profile?.currency)}
-                      </Text>
-                    </Text>
-                    <Text variant="xs" color="secondary">
-                      Limit:{' '}
-                      <Text variant="xs" weight="bold" color="main">
-                        {formatCurrency(b.total_limit, profile?.currency)}
-                      </Text>
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Category Allocations within Budget */}
-                {b.categoriesWithSpending && b.categoriesWithSpending.length > 0 ? (
-                  <View style={styles.categorySublist}>
-                    <Text variant="xs" color="secondary" weight="semibold" style={styles.sublistTitle}>
-                      CATEGORY ALLOCATIONS
-                    </Text>
-                    {b.categoriesWithSpending.map((catItem) => {
-                      const cExceeded = (catItem.spentAmount || 0) > catItem.allocated_amount;
-                      const cPct = catItem.spentPercentage || 0;
-                      return (
-                        <View key={catItem.id} style={styles.catSubRow}>
-                          <View style={styles.catSubInfo}>
-                            <Text variant="sm" weight="medium">
-                              {catItem.category?.name || 'Category'}
-                            </Text>
-                            <Text variant="xs" color="secondary">
-                              {formatCurrency(catItem.spentAmount || 0, profile?.currency)} /{' '}
-                              {formatCurrency(catItem.allocated_amount, profile?.currency)}
-                            </Text>
-                          </View>
-                          <Badge
-                            label={`${cPct}%`}
-                            variant={cExceeded ? 'error' : cPct >= 80 ? 'warning' : 'neutral'}
-                            size="sm"
-                          />
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : null}
-              </Card>
-            );
-          })
-        )}
-
-        {/* Section 2: Savings & Financial Goals */}
-        <View style={[styles.sectionHeader, { marginTop: Spacing.xl }]}>
-          <View style={styles.sectionIconRow}>
-            <Target size={20} color={colors.secondary} />
-            <Text variant="md" weight="bold">
-              Savings Goals
+            <Text
+              variant="xs"
+              weight={activeTab === 'budgets' ? 'bold' : 'medium'}
+              style={{
+                color: activeTab === 'budgets' ? colors.mainText : colors.secondaryText,
+              }}
+            >
+              Budgets
             </Text>
-          </View>
-          <TouchableOpacity onPress={() => router.push('/goals/add')}>
-            <Text variant="xs" color="secondary">
-              + New Goal
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabBtn,
+              activeTab === 'goals' && {
+                backgroundColor: colors.surface,
+                borderColor: colors.borderLight,
+                borderWidth: StyleSheet.hairlineWidth,
+              },
+            ]}
+            onPress={() => setActiveTab('goals')}
+            activeOpacity={0.7}
+          >
+            <Target
+              size={15}
+              color={activeTab === 'goals' ? colors.primary : colors.secondaryText}
+            />
+            <Text
+              variant="xs"
+              weight={activeTab === 'goals' ? 'bold' : 'medium'}
+              style={{
+                color: activeTab === 'goals' ? colors.mainText : colors.secondaryText,
+              }}
+            >
+              Savings Goals
             </Text>
           </TouchableOpacity>
         </View>
 
-        {goals.length === 0 ? (
-          <Card elevated style={styles.emptyCard}>
-            <EmptyState
-              icon={<Target size={40} color={colors.secondary} />}
-              title="No Goals Yet"
-              description="Define savings targets for emergency funds, vacations, or investments."
-              actionTitle="Set a Savings Goal"
-              onAction={() => router.push('/goals/add')}
-            />
-          </Card>
-        ) : (
-          goals.map((g) => {
-            const target = Number(g.target_amount);
-            const current = Number(g.current_amount);
-            const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-            const isDone = g.is_completed || current >= target;
+        {/* =========================================
+            TAB 1: BUDGETS
+        ========================================= */}
+        {activeTab === 'budgets' ? (
+          <>
+            {/* Total Monthly Budget Overview Card */}
+            <View
+              style={[
+                styles.overviewCard,
+                { backgroundColor: colors.surface, borderColor: colors.borderLight },
+              ]}
+            >
+              <View style={styles.overviewTop}>
+                <View>
+                  <Text variant="xs" color="secondary" weight="semibold">
+                    TOTAL MONTHLY BUDGET
+                  </Text>
+                  <Text variant="xl" weight="extrabold" style={{ marginTop: 2 }}>
+                    {formatCurrency(totalBudgetLimit, currency)}
+                  </Text>
+                </View>
 
-            return (
-              <TouchableOpacity
-                key={g.id}
-                activeOpacity={0.7}
-                onPress={() => router.push(`/goals/${g.id}`)}
+                <View style={styles.percentageBadge}>
+                  <Text
+                    variant="xs"
+                    weight="extrabold"
+                    style={{
+                      color:
+                        overallPercentage >= 100
+                          ? colors.negative
+                          : overallPercentage >= 80
+                          ? colors.warning
+                          : colors.positive,
+                    }}
+                  >
+                    {overallPercentage}% spent
+                  </Text>
+                </View>
+              </View>
+
+              {/* Progress bar */}
+              <View
+                style={[
+                  styles.track,
+                  {
+                    backgroundColor: colors.elevatedSurface,
+                  },
+                ]}
               >
-                <Card elevated style={styles.goalCard}>
-                  <View style={styles.goalHeader}>
-                    <View style={styles.goalInfo}>
-                      <Text variant="base" weight="bold">
-                        {g.name}
-                      </Text>
-                      <Text variant="xs" color="secondary">
-                        {g.category} {g.target_date ? `• Target: ${g.target_date}` : ''}
-                      </Text>
-                    </View>
-                    <Badge
-                      label={isDone ? 'Completed' : `${pct}%`}
-                      variant={isDone ? 'success' : 'primary'}
-                      size="sm"
-                    />
-                  </View>
+                <View
+                  style={[
+                    styles.fill,
+                    {
+                      width: `${Math.min(overallProgress * 100, 100)}%`,
+                      backgroundColor:
+                        overallPercentage >= 100
+                          ? colors.negative
+                          : overallPercentage >= 80
+                          ? colors.warning
+                          : colors.positive,
+                    },
+                  ]}
+                />
+              </View>
 
-                  <View style={styles.progressSection}>
-                    <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-                      <View
-                        style={[
-                          styles.progressBar,
-                          {
-                            width: `${pct}%`,
-                            backgroundColor: isDone ? colors.success : colors.secondary,
-                          },
-                        ]}
+              <View style={styles.overviewBottom}>
+                <Text variant="xs" color="secondary">
+                  Spent:{' '}
+                  <Text variant="xs" weight="bold" color="main">
+                    {formatCurrency(totalBudgetSpent, currency)}
+                  </Text>
+                </Text>
+                <Text variant="xs" color="secondary">
+                  Remaining:{' '}
+                  <Text
+                    variant="xs"
+                    weight="bold"
+                    style={{
+                      color: remainingBudget >= 0 ? colors.positive : colors.negative,
+                    }}
+                  >
+                    {formatCurrency(remainingBudget, currency)}
+                  </Text>
+                </Text>
+              </View>
+            </View>
+
+            {/* Category Budgets List */}
+            <View style={styles.sectionTitleRow}>
+              <Text variant="sm" weight="bold">
+                Monthly Budgets
+              </Text>
+              <Text variant="xs" color="secondary">
+                {activeBudgets.length} {activeBudgets.length === 1 ? 'Budget' : 'Budgets'}
+              </Text>
+            </View>
+
+            {!isDemo && initialLoading ? (
+              <ListSkeleton count={4} cardHeight={76} />
+            ) : !isDemo && fetchError && activeBudgets.length === 0 ? (
+              <ErrorState
+                title="Could Not Load Budgets"
+                message={fetchError}
+                onRetry={() => {
+                  setInitialLoading(true);
+                  fetchData();
+                }}
+              />
+            ) : activeBudgets.length === 0 ? (
+              <EmptyState
+                icon={<PieChart size={40} color={colors.primary} />}
+                title="No Budgets Yet"
+                description="Create monthly or category budgets to keep your everyday expenses under control."
+                actionTitle="Create Budget"
+                onAction={() => router.push('/budgets/add')}
+              />
+            ) : (
+              activeBudgets.map((b) => {
+                const pct = b.total_limit > 0 ? Math.round((b.totalSpent / b.total_limit) * 100) : 0;
+                const ratio = b.total_limit > 0 ? Math.min(b.totalSpent / b.total_limit, 1) : 0;
+                const barColor = pct >= 100 ? colors.negative : pct >= 80 ? colors.warning : colors.primary;
+
+                return (
+                  <View key={b.id} style={{ marginBottom: Spacing.md }}>
+                    <View
+                      style={[
+                        styles.budgetGroupCard,
+                        { backgroundColor: colors.surface, borderColor: colors.borderLight },
+                      ]}
+                    >
+                      <View style={styles.budgetGroupHeader}>
+                        <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+                          <Text variant="sm" weight="bold" numberOfLines={1}>
+                            {b.name}
+                          </Text>
+                          <Text variant="xs" color="secondary" style={{ fontSize: 11, marginTop: 1 }}>
+                            {formatCurrency(b.totalSpent, currency)} of {formatCurrency(b.total_limit, currency)} ({pct}%)
+                          </Text>
+                        </View>
+                        <View style={styles.budgetGroupActions}>
+                          <TouchableOpacity
+                            onPress={() => router.push({ pathname: '/budgets/add', params: { editId: b.id } })}
+                            style={[styles.miniIconBtn, { backgroundColor: colors.primaryMuted }]}
+                            accessibilityLabel={`Edit ${b.name}`}
+                          >
+                            <Pencil size={13} color={colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteBudget(b.id, b.name)}
+                            style={[styles.miniIconBtn, { backgroundColor: colors.errorMuted }]}
+                            accessibilityLabel={`Delete ${b.name}`}
+                          >
+                            <Trash2 size={13} color={colors.error} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <View style={[styles.miniTrack, { backgroundColor: colors.elevatedSurface }]}>
+                        <View
+                          style={[
+                            styles.miniFill,
+                            { width: `${ratio * 100}%`, backgroundColor: barColor },
+                          ]}
+                        />
+                      </View>
+                    </View>
+
+                    {(b.categoriesWithSpending || []).map((catItem) => (
+                      <BudgetProgressCard
+                        key={catItem.id}
+                        categoryName={catItem.category?.name || b.name}
+                        categoryIcon={catItem.category?.icon}
+                        categoryColor={catItem.category?.color}
+                        allocatedAmount={catItem.allocated_amount}
+                        spentAmount={catItem.spentAmount || 0}
+                        currency={currency}
                       />
-                    </View>
-
-                    <View style={styles.budgetNumbersRow}>
-                      <Text variant="xs" color="secondary">
-                        Saved:{' '}
-                        <Text variant="xs" weight="bold" color="main">
-                          {formatCurrency(current, profile?.currency)}
-                        </Text>
-                      </Text>
-                      <Text variant="xs" color="secondary">
-                        Target:{' '}
-                        <Text variant="xs" weight="bold" color="main">
-                          {formatCurrency(target, profile?.currency)}
-                        </Text>
-                      </Text>
-                    </View>
+                    ))}
                   </View>
-                </Card>
+                );
+              })
+            )}
+          </>
+        ) : (
+          /* =========================================
+              TAB 2: SAVINGS GOALS
+          ========================================= */
+          <>
+            <View style={styles.sectionTitleRow}>
+              <Text variant="sm" weight="bold">
+                Active Goals
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/goals/add')}>
+                <Text variant="xs" color="primary" weight="bold">
+                  + New Goal
+                </Text>
               </TouchableOpacity>
-            );
-          })
+            </View>
+
+            {!isDemo && initialLoading ? (
+              <ListSkeleton count={4} cardHeight={82} />
+            ) : !isDemo && fetchError && activeGoals.length === 0 ? (
+              <ErrorState
+                title="Could Not Load Goals"
+                message={fetchError}
+                onRetry={() => {
+                  setInitialLoading(true);
+                  fetchData();
+                }}
+              />
+            ) : activeGoals.length === 0 ? (
+              <EmptyState
+                icon={<Target size={40} color={colors.secondary} />}
+                title="No Savings Goals Yet"
+                description="Set aside money for your next big milestone, emergency fund, or vacation."
+                actionTitle="Create First Goal"
+                onAction={() => router.push('/goals/add')}
+              />
+            ) : (
+              activeGoals.map((goal) => (
+                <SavingsGoalCard
+                  key={goal.id}
+                  goal={goal}
+                  currency={currency}
+                  onPress={() => router.push(`/goals/${goal.id}`)}
+                  onAddContribution={() => router.push(`/goals/${goal.id}`)}
+                />
+              ))
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -345,98 +504,116 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.lg,
   },
-  headerRow: {
+  topHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  screenTitle: {
+    fontSize: 20,
+    letterSpacing: -0.4,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    alignItems: 'center',
   },
-  actionBtn: {
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: BorderRadius.lg,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
   },
-  sectionHeader: {
+  tabSwitcher: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 3,
     marginBottom: Spacing.md,
   },
-  sectionIconRow: {
+  tabBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.md,
   },
-  emptyCard: {
+  overviewCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  budgetCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  budgetHeader: {
+  overviewTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: Spacing.md,
   },
-  progressSection: {
-    gap: 8,
+  percentageBadge: {
+    alignItems: 'flex-end',
   },
-  progressTrack: {
+  track: {
     height: 8,
-    borderRadius: 4,
+    borderRadius: BorderRadius.full,
     overflow: 'hidden',
-    width: '100%',
+    marginBottom: Spacing.md,
   },
-  progressBar: {
+  fill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: BorderRadius.full,
   },
-  budgetNumbersRow: {
+  overviewBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  categorySublist: {
-    marginTop: Spacing.lg,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    gap: Spacing.sm,
-  },
-  sublistTitle: {
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  catSubRow: {
+  sectionTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  catSubInfo: {
-    gap: 2,
-  },
-  goalCard: {
-    padding: Spacing.lg,
     marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.xs,
   },
-  goalHeader: {
+  budgetGroupCard: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  budgetGroupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.md,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
-  goalInfo: {
-    flex: 1,
-    gap: 2,
+  budgetGroupActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniIconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniTrack: {
+    height: 6,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  miniFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
   },
 });
-

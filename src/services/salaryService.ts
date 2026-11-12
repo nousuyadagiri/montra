@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { authService } from './authService';
+import { useSyncStore } from '../store/syncStore';
 
 export interface SalaryAllocation {
   category: string;
@@ -95,6 +96,7 @@ export const salaryService = {
         .eq('id', accountId);
     }
 
+    useSyncStore.getState().bumpSync();
     return data;
   },
 };

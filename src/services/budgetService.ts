@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Budget, BudgetCategory } from '../types/database';
+import { useSyncStore } from '../store/syncStore';
 
 export interface CreateBudgetInput {
   name: string;
@@ -85,7 +86,7 @@ export const budgetService = {
       });
 
       const totalLimit = Number(budget.total_limit);
-      const totalSpent = budgetSpent > 0 ? budgetSpent : totalSpentOverall;
+      const totalSpent = categoriesWithSpending.length > 0 ? budgetSpent : totalSpentOverall;
       const remainingAmount = Math.max(0, totalLimit - totalSpent);
       const spentPercentage = totalLimit > 0 ? Math.round((totalSpent / totalLimit) * 100) : 0;
 
@@ -97,6 +98,17 @@ export const budgetService = {
         categoriesWithSpending,
       };
     });
+  },
+
+  async getBudgetById(budgetId: string): Promise<Budget | null> {
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('*, categories:budget_categories(*, category:transaction_categories(*))')
+      .eq('id', budgetId)
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   async createBudget(userId: string, input: CreateBudgetInput): Promise<Budget> {
@@ -123,15 +135,59 @@ export const budgetService = {
       }));
 
       const { error: catError } = await supabase.from('budget_categories').insert(catRows);
-      if (catError) console.warn('Failed to insert budget categories:', catError);
+      if (catError) {
+        await supabase.from('budgets').delete().eq('id', budget.id);
+        throw catError;
+      }
     }
 
+    useSyncStore.getState().bumpSync();
+    return budget;
+  },
+
+  async updateBudget(
+    budgetId: string,
+    input: Partial<CreateBudgetInput>
+  ): Promise<Budget> {
+    const payload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (input.name !== undefined) payload.name = input.name;
+    if (input.period !== undefined) payload.period = input.period;
+    if (input.month !== undefined) payload.month = input.month;
+    if (input.year !== undefined) payload.year = input.year;
+    if (input.totalLimit !== undefined) payload.total_limit = input.totalLimit;
+
+    const { data: budget, error: budgetError } = await supabase
+      .from('budgets')
+      .update(payload)
+      .eq('id', budgetId)
+      .select()
+      .single();
+
+    if (budgetError) throw budgetError;
+
+    if (input.categories !== undefined) {
+      await supabase.from('budget_categories').delete().eq('budget_id', budgetId);
+      if (input.categories.length > 0) {
+        const catRows = input.categories.map((c) => ({
+          budget_id: budgetId,
+          category_id: c.categoryId,
+          allocated_amount: c.allocatedAmount,
+        }));
+        const { error: catErr } = await supabase.from('budget_categories').insert(catRows);
+        if (catErr) throw catErr;
+      }
+    }
+
+    useSyncStore.getState().bumpSync();
     return budget;
   },
 
   async deleteBudget(budgetId: string): Promise<void> {
     const { error } = await supabase.from('budgets').delete().eq('id', budgetId);
     if (error) throw error;
+    useSyncStore.getState().bumpSync();
   },
 };
 

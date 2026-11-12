@@ -3,27 +3,30 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { splitService } from '../../services/splitService';
-import { GroupMember } from '../../types/database';
+import { GroupMember, SupportedCurrency } from '../../types/database';
 import { SplitType, SplitMemberInput } from '../../utils/splitEngine';
 import {
   Text,
-  Heading,
   Input,
   Button,
   Header,
   Card,
-  Badge,
+  LoadingState,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
-import { CURRENCY_SYMBOLS, parseCurrencyInput, formatCurrency } from '../../utils/currency';
+import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
 import { Check, Calendar } from 'lucide-react-native';
 
 const SPLIT_TYPES: { label: string; value: SplitType }[] = [
@@ -34,11 +37,20 @@ const SPLIT_TYPES: { label: string; value: SplitType }[] = [
 ];
 
 export default function AddGroupExpenseScreen() {
-  const { groupId } = useLocalSearchParams<{ groupId: string }>();
+  const { groupId, editExpenseId } = useLocalSearchParams<{ groupId: string; editExpenseId?: string }>();
+  const isEditing = Boolean(editExpenseId);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
+  const profile = useAuthStore((s) => s.profile);
+
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const getDemoGroupDetails = useDemoStore((s) => s.getDemoGroupDetails);
+  const addDemoGroupExpense = useDemoStore((s) => s.addDemoGroupExpense);
+  const updateDemoGroupExpense = useDemoStore((s) => s.updateDemoGroupExpense);
+
+  const isDemo = !user || (groupId?.startsWith('demo-') ?? false);
 
   const [title, setTitle] = useState('');
   const [amountStr, setAmountStr] = useState('');
@@ -47,29 +59,98 @@ export default function AddGroupExpenseScreen() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
 
+  const [groupCurrency, setGroupCurrency] = useState<SupportedCurrency>(
+    ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR'
+  );
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(Boolean(groupId && !isDemo));
+
+  const currencySymbol = CURRENCY_SYMBOLS[groupCurrency] || '₹';
 
   useEffect(() => {
-    if (!groupId || !user) return;
-    splitService.getGroupDetails(groupId, user.id).then((res) => {
-      setMembers(res.members);
-      if (res.members.length > 0) {
-        // Default paidBy to current user or first member
-        const currentMem = res.members.find((m) => m.user_id === user.id) || res.members[0];
-        setPaidBy(currentMem.id);
-        // Default all members selected
-        setSelectedMemberIds(res.members.map((m) => m.id));
+    if (!groupId) return;
+
+    const applyGroupData = (
+      loadedMembers: GroupMember[],
+      loadedCurrency: SupportedCurrency,
+      expensesList: any[]
+    ) => {
+      setMembers(loadedMembers);
+      setGroupCurrency(loadedCurrency);
+
+      if (editExpenseId) {
+        const exp = expensesList.find((e) => e.id === editExpenseId);
+        if (exp) {
+          setTitle(exp.title);
+          setAmountStr(String(exp.amount));
+          setPaidBy(exp.paid_by);
+          setSplitType(exp.split_type || 'equal');
+          setDate(exp.date || new Date().toISOString().split('T')[0]);
+          setNotes(exp.notes || '');
+          const splitMembers = (exp.splits || []).map((s: any) => s.member_id);
+          setSelectedMemberIds(
+            splitMembers.length > 0 ? splitMembers : loadedMembers.map((m) => m.id)
+          );
+          if (exp.split_type === 'exact') {
+            const vals: Record<string, string> = {};
+            (exp.splits || []).forEach((s: any) => {
+              vals[s.member_id] = String(s.owed_amount);
+            });
+            setCustomValues(vals);
+          }
+          return;
+        }
       }
-    });
-  }, [groupId, user]);
+
+      if (loadedMembers.length > 0) {
+        const currentMem =
+          loadedMembers.find((m) => m.user_id === (user?.id || demoProfile.id)) ||
+          loadedMembers[0];
+        setPaidBy(currentMem.id);
+        setSelectedMemberIds(loadedMembers.map((m) => m.id));
+      }
+    };
+
+    if (isDemo) {
+      const details = getDemoGroupDetails(groupId);
+      if (details) {
+        applyGroupData(
+          details.members,
+          (details.group.currency as SupportedCurrency) || 'INR',
+          details.expenses
+        );
+      }
+      setInitialLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
+    setInitialLoading(true);
+    splitService
+      .getGroupDetails(groupId, user.id)
+      .then((res) => {
+        applyGroupData(
+          res.members,
+          (res.group.currency as SupportedCurrency) || 'INR',
+          res.expenses
+        );
+      })
+      .catch((err) => {
+        toast.error(getErrorMessage(err, 'Unable to load group members.'));
+      })
+      .finally(() => setInitialLoading(false));
+  }, [groupId, editExpenseId, user, isDemo, getDemoGroupDetails, demoProfile.id]);
 
   const toggleMember = (id: string) => {
     if (selectedMemberIds.includes(id)) {
       if (selectedMemberIds.length === 1) {
-        Alert.alert('Notice', 'At least one participant must be included in the split.');
+        toast.warning('At least one participant must be included in the split.');
         return;
       }
       setSelectedMemberIds(selectedMemberIds.filter((m) => m !== id));
@@ -83,27 +164,26 @@ export default function AddGroupExpenseScreen() {
   };
 
   const handleSave = async () => {
-    if (!user || !groupId) return;
+    if (!groupId) return;
     const amount = parseCurrencyInput(amountStr);
 
     if (!title.trim()) {
-      Alert.alert('Required Field', 'Please enter an expense title.');
+      toast.warning('Please enter an expense title.', 'Title Required');
       return;
     }
     if (amount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter an amount greater than zero.');
+      toast.warning('Please enter an amount greater than zero.', 'Invalid Amount');
       return;
     }
     if (!paidBy) {
-      Alert.alert('Required Field', 'Please select who paid for this expense.');
+      toast.warning('Please select who paid for this expense.', 'Payer Required');
       return;
     }
     if (selectedMemberIds.length === 0) {
-      Alert.alert('Required Field', 'Please select at least one participant.');
+      toast.warning('Please select at least one participant.', 'Participants Required');
       return;
     }
 
-    // Prepare participants with share values
     const participants: SplitMemberInput[] = selectedMemberIds.map((id) => {
       const mem = members.find((m) => m.id === id);
       return {
@@ -113,32 +193,51 @@ export default function AddGroupExpenseScreen() {
       };
     });
 
+    const payload = {
+      title: title.trim(),
+      amount,
+      paidByMemberId: paidBy,
+      splitType,
+      participants,
+      date,
+      notes: notes.trim() || undefined,
+    };
+
     try {
       setLoading(true);
-      await splitService.createGroupExpense(groupId, user.id, {
-        title: title.trim(),
-        amount,
-        paidByMemberId: paidBy,
-        splitType,
-        participants,
-        date,
-        notes: notes.trim() || undefined,
-      });
+      if (isDemo) {
+        if (editExpenseId) {
+          updateDemoGroupExpense(groupId, editExpenseId, payload);
+        } else {
+          addDemoGroupExpense(groupId, payload);
+        }
+      } else if (user) {
+        if (editExpenseId) {
+          await splitService.updateGroupExpense(editExpenseId, payload);
+        } else {
+          await splitService.createGroupExpense(groupId, user.id, payload);
+        }
+      }
 
+      toast.success(editExpenseId ? 'Shared expense updated.' : 'Shared expense added.');
       router.back();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to record expense.');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save expense.'));
     } finally {
       setLoading(false);
     }
   };
 
-  const totalAmount = parseCurrencyInput(amountStr);
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Add Group Expense" showBack />
-      <ScrollView
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Header title={isEditing ? 'Edit Group Expense' : 'Add Group Expense'} showBack />
+      {initialLoading ? (
+        <LoadingState message="Loading group members..." />
+      ) : (
+        <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + Spacing.xl },
@@ -152,7 +251,7 @@ export default function AddGroupExpenseScreen() {
           </Text>
           <View style={styles.amountInputRow}>
             <Text variant="3xl" weight="bold" color="primary">
-              ₹
+              {currencySymbol}
             </Text>
             <Input
               placeholder="0.00"
@@ -235,7 +334,7 @@ export default function AddGroupExpenseScreen() {
                   <Text
                     variant="xs"
                     weight={isSelected ? 'bold' : 'medium'}
-                    style={{ color: isSelected ? '#0B0F14' : colors.secondaryText }}
+                    style={{ color: isSelected ? colors.onPrimary : colors.secondaryText }}
                   >
                     {st.label}
                   </Text>
@@ -269,7 +368,7 @@ export default function AddGroupExpenseScreen() {
                         },
                       ]}
                     >
-                      {isChecked ? <Check size={14} color="#0B0F14" /> : null}
+                      {isChecked ? <Check size={14} color={colors.onPrimary} /> : null}
                     </View>
                     <Text variant="sm" weight={isChecked ? 'semibold' : 'regular'}>
                       {m.member_name}
@@ -285,7 +384,7 @@ export default function AddGroupExpenseScreen() {
                             ? '%'
                             : splitType === 'shares'
                             ? 'Shares'
-                            : 'Exact ₹'
+                            : `Exact ${currencySymbol}`
                         }
                         keyboardType="decimal-pad"
                         value={customValues[m.id] || ''}
@@ -307,11 +406,12 @@ export default function AddGroupExpenseScreen() {
           size="lg"
           loading={loading}
           onPress={handleSave}
-          leftIcon={<Check size={20} color="#0B0F14" />}
+          leftIcon={<Check size={20} color={colors.onPrimary} />}
           buttonStyle={{ marginTop: Spacing.xl }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 

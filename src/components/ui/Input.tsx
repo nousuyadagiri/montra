@@ -15,24 +15,30 @@ import { Eye, EyeOff } from 'lucide-react-native';
 
 export interface InputProps extends TextInputProps {
   label?: string;
+  labelRight?: React.ReactNode;
   error?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   isPassword?: boolean;
+  compact?: boolean;
   containerStyle?: ViewStyle;
   inputStyle?: TextStyle;
   prefix?: string;
+  backgroundColor?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
   label,
+  labelRight,
   error,
   leftIcon,
   rightIcon,
   isPassword = false,
+  compact = false,
   containerStyle,
   inputStyle,
   prefix,
+  backgroundColor,
   secureTextEntry,
   onFocus,
   onBlur,
@@ -53,18 +59,31 @@ export const Input: React.FC<InputProps> = ({
   };
 
   return (
-    <View style={[styles.wrapper, containerStyle]}>
-      {label ? (
-        <Text variant="sm" weight="medium" color="secondary" style={styles.label}>
-          {label}
-        </Text>
+    <View style={[styles.wrapper, compact && styles.wrapperCompact, containerStyle]}>
+      {label || labelRight ? (
+        <View style={[styles.labelRow, compact && styles.labelRowCompact]}>
+          {label ? (
+            <Text
+              variant={compact ? 'xs' : 'sm'}
+              weight="medium"
+              color="secondary"
+              style={styles.label}
+            >
+              {label}
+            </Text>
+          ) : (
+            <View />
+          )}
+          {labelRight || null}
+        </View>
       ) : null}
 
       <View
         style={[
           styles.inputContainer,
+          compact && styles.inputContainerCompact,
           {
-            backgroundColor: isDark ? colors.surface : colors.surface,
+            backgroundColor: backgroundColor ?? (isDark ? colors.surface : colors.surface),
             borderColor: error
               ? colors.error
               : isFocused
@@ -90,6 +109,7 @@ export const Input: React.FC<InputProps> = ({
         <TextInput
           style={[
             styles.input,
+            compact && styles.inputCompact,
             {
               color: colors.mainText,
               fontFamily: Typography.fontFamily,
@@ -136,20 +156,41 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     width: '100%',
   },
-  label: {
+  wrapperCompact: {
+    marginBottom: Spacing.sm + 1,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
+  },
+  labelRowCompact: {
+    marginBottom: 3,
+  },
+  label: {
+    flexShrink: 1,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    minHeight: 50,
+    minHeight: 52,
+  },
+  inputContainerCompact: {
+    minHeight: 44,
+    borderRadius: BorderRadius.md + 2,
+    paddingHorizontal: Spacing.md,
   },
   input: {
     flex: 1,
     fontSize: Typography.sizes.base,
     paddingVertical: Spacing.sm,
+  },
+  inputCompact: {
+    fontSize: 14,
+    paddingVertical: 6,
   },
   iconLeft: {
     marginRight: Spacing.sm,

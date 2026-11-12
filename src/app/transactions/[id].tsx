@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
 import { transactionService } from '../../services/transactionService';
-import { Transaction } from '../../types/database';
+import { Transaction, SupportedCurrency } from '../../types/database';
 import {
   Text,
   Heading,
@@ -15,10 +16,14 @@ import {
   Button,
   Header,
   LoadingState,
+  ErrorState,
 } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
+import { Spacing } from '../../theme/tokens';
 import {
   Trash2,
+  Pencil,
   Calendar,
   CreditCard,
   Tag,
@@ -32,20 +37,54 @@ export default function TransactionDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+
+  const demoTransactions = useDemoStore((s) => s.demoTransactions);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const deleteDemoTransaction = useDemoStore((s) => s.deleteDemoTransaction);
+
+  const isDemo = !user || (id?.startsWith('demo-') ?? false);
 
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
+  const loadTransaction = useCallback(() => {
+    if (!id) {
+      setLoading(false);
+      setLoadError('Transaction ID is missing.');
+      return;
+    }
+    setLoadError(null);
+    if (isDemo) {
+      const found = demoTransactions.find((t) => t.id === id) || null;
+      setTransaction(found);
+      if (!found) setLoadError('This demo transaction could not be found.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     transactionService
       .getTransactionById(id)
-      .then((data) => setTransaction(data))
-      .catch((err) => Alert.alert('Error', err?.message || 'Transaction not found'))
+      .then((data) => {
+        setTransaction(data);
+        if (!data) setLoadError('Transaction could not be found.');
+      })
+      .catch((err) => {
+        const msg = getErrorMessage(err, 'Transaction not found.');
+        setLoadError(msg);
+      })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isDemo, demoTransactions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTransaction();
+    }, [loadTransaction])
+  );
 
   const handleDelete = () => {
     if (!transaction) return;
@@ -60,8 +99,29 @@ export default function TransactionDetailScreen() {
           onPress: async () => {
             try {
               setDeleting(true);
-              // Reverse balance impact
-              if (transaction.account_id) {
+              if (isDemo) {
+                deleteDemoTransaction(transaction.id);
+                toast.success('Transaction removed.');
+                router.back();
+                return;
+              }
+              // Reverse balance impact safely
+              if (transaction.type === 'transfer') {
+                if (transaction.account_id) {
+                  await transactionService.adjustAccountBalance(
+                    transaction.account_id,
+                    transaction.amount,
+                    'income'
+                  );
+                }
+                if (transaction.to_account_id) {
+                  await transactionService.adjustAccountBalance(
+                    transaction.to_account_id,
+                    transaction.amount,
+                    'expense'
+                  );
+                }
+              } else if (transaction.account_id) {
                 const reverseType =
                   transaction.type === 'income' ? 'expense' : 'income';
                 await transactionService.adjustAccountBalance(
@@ -71,9 +131,10 @@ export default function TransactionDetailScreen() {
                 );
               }
               await transactionService.deleteTransaction(transaction.id);
+              toast.success('Transaction deleted and balance updated.');
               router.back();
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to delete transaction.');
+            } catch (err: unknown) {
+              toast.error(getErrorMessage(err, 'Failed to delete transaction.'));
             } finally {
               setDeleting(false);
             }
@@ -83,7 +144,7 @@ export default function TransactionDetailScreen() {
     );
   };
 
-  if (loading || !transaction) {
+  if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Header title="Transaction Details" showBack />
@@ -92,8 +153,24 @@ export default function TransactionDetailScreen() {
     );
   }
 
+  if (!transaction) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header title="Transaction Details" showBack />
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <ErrorState
+            title="Transaction Unavailable"
+            message={loadError || 'This transaction may have been deleted.'}
+            onRetry={loadTransaction}
+          />
+        </View>
+      </View>
+    );
+  }
+
   const isIncome = transaction.type === 'income';
   const isTransfer = transaction.type === 'transfer';
+  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -101,9 +178,22 @@ export default function TransactionDetailScreen() {
         title="Transaction Details"
         showBack
         rightAction={
-          <TouchableOpacity onPress={handleDelete} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Trash2 size={20} color={colors.error} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/transactions/add', params: { editId: transaction.id } })}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Edit transaction"
+            >
+              <Pencil size={19} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDelete}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Delete transaction"
+            >
+              <Trash2 size={20} color={colors.error} />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -138,7 +228,7 @@ export default function TransactionDetailScreen() {
 
           <CurrencyText
             amount={transaction.amount}
-            currency={profile?.currency || 'INR'}
+            currency={activeCurrency}
             variant="3xl"
             weight="extrabold"
             style={{

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,35 +6,33 @@ import {
   TouchableOpacity,
   RefreshControl,
   ScrollView,
+  Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Download, Plus, Calendar } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { useSyncStore } from '../../store/syncStore';
 import { transactionService } from '../../services/transactionService';
-import { Transaction, TransactionCategory } from '../../types/database';
+import { Transaction, TransactionCategory, SupportedCurrency } from '../../types/database';
 import {
   Text,
   Heading,
-  CurrencyText,
-  Input,
-  Button,
-  Card,
-  Badge,
-  LoadingState,
+  TransactionItem,
+  SearchBar,
+  DateFilterOption,
+  DemoDataBadge,
   EmptyState,
+  ErrorState,
+  ListSkeleton,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { exportTransactionsToCSV } from '../../utils/csvExport';
-import {
-  Search,
-  Plus,
-  ArrowDownLeft,
-  ArrowUpRight,
-  ArrowLeftRight,
-  Download,
-  Filter,
-} from 'lucide-react-native';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 
 const TYPE_FILTERS = [
   { label: 'All', value: undefined },
@@ -43,24 +41,47 @@ const TYPE_FILTERS = [
   { label: 'Transfers', value: 'transfer' },
 ] as const;
 
+interface DateGroup {
+  dateKey: string;
+  displayDate: string;
+  items: Transaction[];
+}
+
 export default function TransactionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+  const syncTick = useSyncStore((s) => s.syncTick);
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const demoTransactions = useDemoStore((s) => s.demoTransactions);
+  const demoCategories = useDemoStore((s) => s.demoCategories);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+
+  const [realTransactions, setRealTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<TransactionCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(Boolean(user));
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string | undefined>(undefined);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [selectedDateFilter] = useState<DateFilterOption>('all');
+
+  const isDemo = !user;
 
   const fetchTransactions = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setInitialLoading(false);
+      setRefreshing(false);
+      setFetchError(null);
+      return;
+    }
     try {
+      setFetchError(null);
       const [txns, cats] = await Promise.all([
         transactionService.getTransactions(user.id, {
           type: selectedType as any,
@@ -69,12 +90,17 @@ export default function TransactionsScreen() {
         }),
         transactionService.getCategories(user.id),
       ]);
-      setTransactions(txns);
+      hasLoadedRef.current = true;
+      setRealTransactions(txns);
       setCategories(cats);
-    } catch (err) {
-      console.warn('Failed to load transactions:', err);
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Unable to load transactions.');
+      setFetchError(msg);
+      if (hasLoadedRef.current) {
+        toast.error(msg, 'Load Failed');
+      }
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
       setRefreshing(false);
     }
   }, [user, selectedType, selectedCategory, searchQuery]);
@@ -85,68 +111,189 @@ export default function TransactionsScreen() {
     }, [fetchTransactions])
   );
 
+  useEffect(() => {
+    if (syncTick > 0) {
+      fetchTransactions();
+    }
+  }, [syncTick, fetchTransactions]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchTransactions();
   };
 
+  const activeCategories = isDemo ? demoCategories : categories;
+
+  // Filter Transactions (supports demo & real client-side filtering consistently)
+  const filteredTransactions = useMemo(() => {
+    const source = isDemo ? demoTransactions : realTransactions;
+
+    return source.filter((item) => {
+      // 1. Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesTitle = item.title.toLowerCase().includes(q);
+        const matchesCat = item.category?.name.toLowerCase().includes(q);
+        const matchesNotes = item.notes?.toLowerCase().includes(q);
+        if (!matchesTitle && !matchesCat && !matchesNotes) return false;
+      }
+
+      // 2. Type Filter
+      if (selectedType && item.type !== selectedType) {
+        return false;
+      }
+
+      // 3. Category Filter
+      if (selectedCategory && item.category_id !== selectedCategory) {
+        return false;
+      }
+
+      // 4. Date Filter
+      if (selectedDateFilter !== 'all' && item.date) {
+        const itemDate = new Date(item.date);
+        const now = new Date();
+        if (selectedDateFilter === 'this_month') {
+          if (itemDate.getMonth() !== now.getMonth() || itemDate.getFullYear() !== now.getFullYear()) {
+            return false;
+          }
+        } else if (selectedDateFilter === 'last_month') {
+          const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+          const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+          if (itemDate.getMonth() !== lastMonth || itemDate.getFullYear() !== year) {
+            return false;
+          }
+        } else if (selectedDateFilter === 'this_year') {
+          if (itemDate.getFullYear() !== now.getFullYear()) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [isDemo, demoTransactions, realTransactions, searchQuery, selectedType, selectedCategory, selectedDateFilter]);
+
+  // Group transactions by Date
+  const groupedTransactions: DateGroup[] = useMemo(() => {
+    const groups: Record<string, Transaction[]> = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    filteredTransactions.forEach((txn) => {
+      const dateKey = txn.date || todayStr;
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(txn);
+    });
+
+    return Object.keys(groups)
+      .sort((a, b) => (a < b ? 1 : -1))
+      .map((dateKey) => {
+        let displayDate = dateKey;
+        if (dateKey === todayStr) {
+          displayDate = 'Today';
+        } else if (dateKey === yesterdayStr) {
+          displayDate = 'Yesterday';
+        } else {
+          try {
+            const d = new Date(dateKey + 'T00:00:00');
+            displayDate = d.toLocaleDateString('en-IN', {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+            });
+          } catch {
+            displayDate = dateKey;
+          }
+        }
+        return {
+          dateKey,
+          displayDate,
+          items: groups[dateKey],
+        };
+      });
+  }, [filteredTransactions]);
+
   const handleExportCSV = async () => {
-    await exportTransactionsToCSV(transactions);
+    await exportTransactionsToCSV(filteredTransactions);
   };
+
+  const activeProfile = isDemo ? demoProfile : profile;
+  const currency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+
+  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
+  const tabHeight = 62 + bottomInset;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Top Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+      {/* 1. TOP HEADER */}
+      <View style={[styles.header, { paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10) }]}>
         <View style={styles.headerTitleRow}>
-          <Heading level={1}>Transactions</Heading>
+          <View style={styles.titleWithBadge}>
+            <Heading level={2} style={styles.titleText}>Transactions</Heading>
+            {isDemo ? <DemoDataBadge compact /> : null}
+          </View>
+
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={[styles.iconButton, { backgroundColor: colors.surface }]}
+              style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               onPress={handleExportCSV}
               accessibilityLabel="Export transactions as CSV"
             >
-              <Download size={20} color={colors.mainText} />
+              <Download size={17} color={colors.mainText} />
             </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.addBtn, { backgroundColor: colors.primary }]}
               onPress={() => router.push('/transactions/add')}
               accessibilityLabel="Add transaction"
+              activeOpacity={0.8}
             >
-              <Plus size={20} color="#0B0F14" />
+              <Plus size={16} color={colors.onPrimary} />
+              <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, marginLeft: 4 }}>
+                Add
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Search Bar */}
-        <Input
-          placeholder="Search by title..."
+        {/* 2. COMPACT SEARCH BAR */}
+        <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
-          leftIcon={<Search size={18} color={colors.secondaryText} />}
-          containerStyle={styles.searchBar}
+          placeholder="Search transactions..."
+          onClear={() => setSearchQuery('')}
+          style={styles.searchBar}
         />
 
-        {/* Type Filter Pills */}
-        <View style={styles.filterPillsRow}>
+        {/* 3. TYPE FILTER PILLS (Segmented Row) */}
+        <View style={[styles.filterPillsRow, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
           {TYPE_FILTERS.map((item) => {
             const isSelected = selectedType === item.value;
             return (
               <TouchableOpacity
                 key={item.label}
                 onPress={() => setSelectedType(item.value)}
+                activeOpacity={0.7}
                 style={[
                   styles.filterPill,
                   {
-                    backgroundColor: isSelected ? colors.primary : colors.surface,
-                    borderColor: isSelected ? colors.primary : colors.border,
+                    backgroundColor: isSelected ? colors.primary : 'transparent',
                   },
                 ]}
               >
                 <Text
                   variant="xs"
                   weight={isSelected ? 'bold' : 'medium'}
-                  style={{ color: isSelected ? '#0B0F14' : colors.mainText }}
+                  style={{
+                    color: isSelected ? colors.onPrimary : colors.secondaryText,
+                    fontSize: 11,
+                  }}
                 >
                   {item.label}
                 </Text>
@@ -155,8 +302,8 @@ export default function TransactionsScreen() {
           })}
         </View>
 
-        {/* Category Horizontal Filter */}
-        {categories.length > 0 ? (
+        {/* 4. CATEGORY HORIZONTAL FILTER */}
+        {activeCategories.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -164,40 +311,53 @@ export default function TransactionsScreen() {
           >
             <TouchableOpacity
               onPress={() => setSelectedCategory(undefined)}
+              activeOpacity={0.7}
               style={[
                 styles.catPill,
                 {
-                  backgroundColor: !selectedCategory ? colors.primaryMuted : 'transparent',
-                  borderColor: !selectedCategory ? colors.primary : colors.border,
+                  backgroundColor: !selectedCategory
+                    ? colors.primaryMuted
+                    : 'transparent',
+                  borderColor: !selectedCategory ? colors.primary : colors.borderLight,
                 },
               ]}
             >
               <Text
                 variant="xs"
                 weight={!selectedCategory ? 'bold' : 'regular'}
-                style={{ color: !selectedCategory ? colors.primary : colors.secondaryText }}
+                style={{
+                  color: !selectedCategory ? colors.primary : colors.secondaryText,
+                  fontSize: 11,
+                }}
               >
                 All Categories
               </Text>
             </TouchableOpacity>
-            {categories.map((c) => {
+
+            {activeCategories.map((c) => {
               const isSelected = selectedCategory === c.id;
               return (
                 <TouchableOpacity
                   key={c.id}
                   onPress={() => setSelectedCategory(isSelected ? undefined : c.id)}
+                  activeOpacity={0.7}
                   style={[
                     styles.catPill,
                     {
-                      backgroundColor: isSelected ? colors.primaryMuted : 'transparent',
-                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isSelected
+                        ? colors.primaryMuted
+                        : 'transparent',
+                      borderColor: isSelected ? colors.primary : colors.borderLight,
                     },
                   ]}
                 >
                   <Text
                     variant="xs"
                     weight={isSelected ? 'bold' : 'regular'}
-                    style={{ color: isSelected ? colors.primary : colors.secondaryText }}
+                    style={{
+                      color: isSelected ? colors.primary : colors.secondaryText,
+                      fontSize: 11,
+                    }}
                   >
                     {c.name}
                   </Text>
@@ -208,100 +368,79 @@ export default function TransactionsScreen() {
         ) : null}
       </View>
 
-      {/* Transactions List */}
-      {loading && !refreshing ? (
-        <LoadingState message="Loading transactions..." />
-      ) : (
-        <FlatList
-          data={transactions}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + Spacing.xl },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
+      {/* 5. TRANSACTIONS GROUPED BY DATE */}
+      <FlatList
+        data={groupedTransactions}
+        keyExtractor={(group) => group.dateKey}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: tabHeight + Spacing.lg },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          !isDemo && initialLoading ? (
+            <ListSkeleton count={6} cardHeight={62} />
+          ) : !isDemo && fetchError ? (
+            <ErrorState
+              title="Could Not Load Transactions"
+              message={fetchError}
+              onRetry={() => {
+                setInitialLoading(true);
+                fetchTransactions();
+              }}
             />
-          }
-          ListEmptyComponent={
+          ) : (
             <EmptyState
               title="No Transactions Found"
-              description="No transaction matches your filters. Tap '+ Add Transaction' to create one."
+              description="No transactions match your current search or filters. Tap '+ Add' to record one."
               actionTitle="Add Transaction"
               onAction={() => router.push('/transactions/add')}
             />
-          }
-          renderItem={({ item }) => {
-            const isIncome = item.type === 'income';
-            const isTransfer = item.type === 'transfer';
+          )
+        }
+        renderItem={({ item: group }) => (
+          <View style={styles.dateGroupContainer}>
+            <View style={styles.dateHeaderRow}>
+              <View style={styles.dateLeftRow}>
+                <Calendar size={12} color={colors.secondaryText} />
+                <Text variant="xs" color="secondary" weight="bold" style={styles.dateHeaderText}>
+                  {group.displayDate.toUpperCase()}
+                </Text>
+              </View>
+              <Text variant="xs" color="secondary" style={styles.countText}>
+                {group.items.length} {group.items.length === 1 ? 'txn' : 'txns'}
+              </Text>
+            </View>
 
-            return (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => router.push(`/transactions/${item.id}`)}
-              >
-                <Card style={styles.txnCard}>
-                  <View style={styles.txnRow}>
-                    <View
-                      style={[
-                        styles.iconCircle,
-                        {
-                          backgroundColor: isIncome
-                            ? colors.successMuted
-                            : isTransfer
-                            ? colors.secondaryMuted
-                            : colors.errorMuted,
-                        },
-                      ]}
-                    >
-                      {isIncome ? (
-                        <ArrowDownLeft size={20} color={colors.success} />
-                      ) : isTransfer ? (
-                        <ArrowLeftRight size={20} color={colors.secondary} />
-                      ) : (
-                        <ArrowUpRight size={20} color={colors.error} />
-                      )}
-                    </View>
-
-                    <View style={styles.txnInfo}>
-                      <Text variant="base" weight="semibold" numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text variant="xs" color="secondary">
-                        {item.category?.name || 'General'} • {item.date} • {item.payment_method}
-                      </Text>
-                    </View>
-
-                    <View style={styles.txnAmountCol}>
-                      <CurrencyText
-                        amount={item.amount}
-                        currency={profile?.currency || 'INR'}
-                        variant="base"
-                        weight="bold"
-                        style={{
-                          color: isIncome
-                            ? colors.success
-                            : isTransfer
-                            ? colors.secondary
-                            : colors.mainText,
-                        }}
-                      />
-                      <Badge
-                        label={isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
-                        variant={isIncome ? 'success' : isTransfer ? 'secondary' : 'error'}
-                        size="sm"
-                      />
-                    </View>
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+            <View
+              style={[
+                styles.groupCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                },
+              ]}
+            >
+              {group.items.map((txn, idx) => (
+                <TransactionItem
+                  key={txn.id}
+                  transaction={txn}
+                  currency={currency}
+                  onPress={() => router.push(`/transactions/${txn.id}`)}
+                  showDivider={idx < group.items.length - 1}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -312,87 +451,101 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
   headerTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  titleText: {
+    fontSize: 20,
+    letterSpacing: -0.4,
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flexDirection: 'row',
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchBar: {
-    marginBottom: Spacing.sm,
+    marginBottom: 6,
   },
   filterPillsRow: {
     flexDirection: 'row',
-    gap: Spacing.xs,
-    marginBottom: Spacing.xs,
+    padding: 2.5,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: 6,
   },
   filterPill: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.md,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderRadius: BorderRadius.md,
   },
   catFilterScroll: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
+    gap: 6,
+    paddingVertical: 2,
   },
   catPill: {
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    paddingHorizontal: 12,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xs,
-    gap: Spacing.xs,
+    paddingTop: 4,
   },
-  txnCard: {
-    padding: Spacing.md,
-    marginBottom: Spacing.xs,
+  dateGroupContainer: {
+    marginBottom: Spacing.sm,
   },
-  txnRow: {
+  dateHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingHorizontal: 2,
+  },
+  dateLeftRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  txnInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  txnAmountCol: {
-    alignItems: 'flex-end',
     gap: 4,
   },
+  dateHeaderText: {
+    fontSize: 10.5,
+    letterSpacing: 0.8,
+  },
+  countText: {
+    fontSize: 10,
+  },
+  groupCard: {
+    paddingVertical: 2,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
 });
-

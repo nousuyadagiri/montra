@@ -1,30 +1,39 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { authService } from '../../services/authService';
 import { registerSchema } from '../../utils/validation';
 import { z } from 'zod';
-import { Text, Heading, Button, Input, Header } from '../../components/ui';
+import { AuthShell } from '../../components/auth/AuthShell';
+import { Text, Button, Input } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
-import { Mail, Lock, User, UserPlus } from 'lucide-react-native';
+import {
+  Mail,
+  Lock,
+  User,
+  UserPlus,
+  ArrowRight,
+  ShieldCheck,
+  Coins,
+} from 'lucide-react-native';
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const CURRENCIES = [
-  { code: 'INR', symbol: '₹', label: 'INR (₹)' },
-  { code: 'USD', symbol: '$', label: 'USD ($)' },
-  { code: 'EUR', symbol: '€', label: 'EUR (€)' },
-  { code: 'GBP', symbol: '£', label: 'GBP (£)' },
+  { code: 'INR', symbol: '₹' },
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'GBP', symbol: '£' },
 ] as const;
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
@@ -34,8 +43,6 @@ export default function RegisterScreen() {
   const {
     control,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -47,8 +54,6 @@ export default function RegisterScreen() {
       currency: 'INR',
     },
   });
-
-  const selectedCurrency = watch('currency');
 
   const onSubmit = async (values: RegisterFormValues) => {
     try {
@@ -63,230 +68,222 @@ export default function RegisterScreen() {
 
       if (res.session) {
         await refreshProfile();
+        toast.success('Your MONTRA account is ready!', 'Welcome');
         router.replace('/(tabs)');
       } else {
-        Alert.alert(
-          'Account Created',
-          'A confirmation link has been sent to your email. Please verify to log in.',
-          [{ text: 'OK', onPress: () => router.push('/(auth)/login') }]
-        );
+        toast.info('Please check your email link to verify your account.', 'Account Created');
+        router.push('/(auth)/login');
       }
     } catch (error: any) {
-      const msg = error?.message || 'Failed to create account. Please try again.';
+      let msg = getErrorMessage(error, 'Failed to create account. Please try again.');
+      if (
+        msg.toLowerCase().includes('rate limit') ||
+        error?.code === 'over_email_send_rate_limit' ||
+        error?.status === 429
+      ) {
+        msg =
+          'Email rate limit exceeded. Please wait a few minutes or disable email confirmation in Supabase Authentication settings for testing.';
+      }
       setErrorMessage(msg);
-      Alert.alert('Registration Error', msg);
+      toast.error(msg, 'Registration Failed');
     } finally {
       setLoading(false);
     }
   };
 
+  const inputSurface = isDark ? colors.elevatedSurface : colors.background;
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Create Account" showBack />
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingBottom: insets.bottom + Spacing.xl,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.headerBlock}>
-          <Heading level={1}>Get Started</Heading>
-          <Text variant="sm" color="secondary" style={styles.subtitle}>
-            Create your Montra account to take control of your wealth.
-          </Text>
-        </View>
+    <AuthShell
+      eyebrow="GET STARTED"
+      title="Create account"
+      subtitle="Set up your personal wealth and split workspace."
+      icon={<UserPlus size={14} color={colors.accent} />}
+      imageSource={require('../../../assets/images/auth/welcome-clarity.jpg')}
+      activeTab="register"
+      compactSpacing
+      errorMessage={errorMessage}
+    >
+      <View style={styles.form}>
+        <Controller
+          control={control}
+          name="fullName"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              label="Full Name"
+              placeholder="Alex Morgan"
+              autoCapitalize="words"
+              textContentType="name"
+              autoComplete="name"
+              compact
+              backgroundColor={inputSurface}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={errors.fullName?.message}
+              leftIcon={<User size={16} color={colors.secondaryText} />}
+            />
+          )}
+        />
 
-        {errorMessage ? (
-          <View style={[styles.errorBanner, { backgroundColor: colors.errorMuted, borderColor: colors.error }]}>
-            <Text variant="sm" color="error">
-              {errorMessage}
-            </Text>
-          </View>
-        ) : null}
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              label="Email Address"
+              placeholder="alex@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
+              autoComplete="email"
+              compact
+              backgroundColor={inputSurface}
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={errors.email?.message}
+              leftIcon={<Mail size={16} color={colors.secondaryText} />}
+            />
+          )}
+        />
 
-        <View style={styles.form}>
-          <Controller
-            control={control}
-            name="fullName"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Full Name"
-                placeholder="Alex Johnson"
-                autoCapitalize="words"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                error={errors.fullName?.message}
-                leftIcon={<User size={18} color={colors.secondaryText} />}
-              />
-            )}
-          />
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              label="Password"
+              placeholder="Minimum 6 characters"
+              isPassword
+              compact
+              backgroundColor={inputSurface}
+              textContentType="newPassword"
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={errors.password?.message}
+              leftIcon={<Lock size={16} color={colors.secondaryText} />}
+            />
+          )}
+        />
 
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Email Address"
-                placeholder="alex@example.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                error={errors.email?.message}
-                leftIcon={<Mail size={18} color={colors.secondaryText} />}
-              />
-            )}
-          />
+        <Controller
+          control={control}
+          name="confirmPassword"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              label="Confirm Password"
+              placeholder="Re-enter password"
+              isPassword
+              compact
+              backgroundColor={inputSurface}
+              textContentType="newPassword"
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={errors.confirmPassword?.message}
+              leftIcon={<ShieldCheck size={16} color={colors.secondaryText} />}
+            />
+          )}
+        />
 
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Password"
-                placeholder="Minimum 6 characters"
-                isPassword
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                error={errors.password?.message}
-                leftIcon={<Lock size={18} color={colors.secondaryText} />}
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="confirmPassword"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <Input
-                label="Confirm Password"
-                placeholder="Re-enter password"
-                isPassword
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                error={errors.confirmPassword?.message}
-                leftIcon={<Lock size={18} color={colors.secondaryText} />}
-              />
-            )}
-          />
-
-          {/* Preferred Currency Selector */}
-          <View style={styles.currencySection}>
-            <Text variant="sm" weight="medium" color="secondary" style={styles.currencyLabel}>
-              Primary Currency
-            </Text>
-            <View style={styles.currencyRow}>
-              {CURRENCIES.map((curr) => {
-                const isSelected = selectedCurrency === curr.code;
-                return (
-                  <TouchableOpacity
-                    key={curr.code}
-                    onPress={() => setValue('currency', curr.code)}
-                    style={[
-                      styles.currencyPill,
-                      {
-                        backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      variant="sm"
-                      weight={isSelected ? 'bold' : 'medium'}
-                      style={{ color: isSelected ? colors.primary : colors.mainText }}
+        {/* Compact Single-Row Currency Selector */}
+        <Controller
+          control={control}
+          name="currency"
+          render={({ field: { value, onChange } }) => (
+            <View style={styles.currencyRowWrapper}>
+              <View style={styles.currencyLabelGroup}>
+                <Coins size={14} color={colors.secondaryText} />
+                <Text variant="xs" weight="medium" color="secondary">
+                  Currency
+                </Text>
+              </View>
+              <View style={styles.currencyPills}>
+                {CURRENCIES.map((curr) => {
+                  const isSelected = value === curr.code;
+                  return (
+                    <TouchableOpacity
+                      key={curr.code}
+                      activeOpacity={0.75}
+                      onPress={() => onChange(curr.code)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      style={[
+                        styles.currencyTile,
+                        {
+                          backgroundColor: isSelected
+                            ? isDark
+                              ? colors.primaryMuted
+                              : colors.softAccent
+                            : inputSurface,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          borderWidth: isSelected ? 1.5 : 1,
+                        },
+                      ]}
                     >
-                      {curr.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        variant="xs"
+                        weight={isSelected ? 'bold' : 'medium'}
+                        style={{
+                          color: isSelected ? colors.primary : colors.mainText,
+                        }}
+                      >
+                        {curr.symbol} {curr.code}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
+        />
 
-          <Button
-            title="Create Account"
-            variant="primary"
-            size="lg"
-            loading={loading}
-            onPress={handleSubmit(onSubmit)}
-            leftIcon={<UserPlus size={20} color="#0B0F14" />}
-            buttonStyle={styles.submitButton}
-          />
-        </View>
-
-        <View style={styles.footerRow}>
-          <Text variant="sm" color="secondary">
-            Already have an account?{' '}
-          </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-            <Text variant="sm" color="primary" weight="bold">
-              Sign In
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+        <Button
+          title="Create Account"
+          variant="primary"
+          size="md"
+          loading={loading}
+          onPress={handleSubmit(onSubmit)}
+          rightIcon={<ArrowRight size={17} color={colors.onPrimary} />}
+          buttonStyle={styles.submitButton}
+        />
+      </View>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
-  },
-  headerBlock: {
-    marginBottom: Spacing.lg,
-  },
-  subtitle: {
-    marginTop: Spacing.xs,
-  },
-  errorBanner: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
-  },
   form: {
     width: '100%',
   },
-  currencySection: {
-    marginBottom: Spacing.lg,
-  },
-  currencyLabel: {
-    marginBottom: Spacing.xs,
-  },
-  currencyRow: {
+  currencyRowWrapper: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.sm,
+    marginTop: 2,
+    marginBottom: Spacing.sm + 4,
   },
-  currencyPill: {
+  currencyLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  currencyPills: {
     flex: 1,
-    paddingVertical: Spacing.sm,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  currencyTile: {
+    flex: 1,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
   },
   submitButton: {
-    marginTop: Spacing.sm,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: Spacing.xl,
+    marginTop: 2,
   },
 });
-

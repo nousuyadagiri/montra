@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,33 +6,32 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Download, TrendingUp, Sparkles, PieChart, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { useSyncStore } from '../../store/syncStore';
 import { analyticsService, AnalyticsSummary } from '../../services/analyticsService';
 import { transactionService } from '../../services/transactionService';
+import { SupportedCurrency } from '../../types/database';
+import { DEMO_ANALYTICS_INSIGHTS } from '../../services/demoData';
 import {
   Text,
-  Heading,
-  CurrencyText,
   Card,
-  Badge,
   Header,
+  IncomeExpenseChart,
+  DemoDataBadge,
   LoadingState,
-  Button,
+  ErrorState,
 } from '../../components/ui';
-import { MonthlyBarChart, CategoryProgressRow } from '../../components/charts/FinanceCharts';
+import { CategoryProgressRow } from '../../components/charts/FinanceCharts';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { exportTransactionsToCSV } from '../../utils/csvExport';
-import {
-  BarChart3,
-  Download,
-  TrendingUp,
-  ArrowDownLeft,
-  ArrowUpRight,
-  PieChart,
-} from 'lucide-react-native';
+import { formatCurrency } from '../../utils/currency';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 
 const PERIODS = [
   { label: 'Week', value: 'week' },
@@ -41,33 +40,60 @@ const PERIODS = [
 ] as const;
 
 export default function AnalyticsScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+  const syncTick = useSyncStore((s) => s.syncTick);
+
+  const demoTransactions = useDemoStore((s) => s.demoTransactions);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const getDemoAnalytics = useDemoStore((s) => s.getDemoAnalytics);
 
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [data, setData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  const isDemo = !user;
 
   const fetchAnalytics = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      setRefreshing(false);
+      setFetchError(null);
+      return;
+    }
     try {
+      setFetchError(null);
       const summary = await analyticsService.getAnalytics(user.id, period);
+      hasLoadedRef.current = true;
       setData(summary);
-    } catch (err) {
-      console.warn('Analytics fetch error:', err);
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Unable to load analytics.');
+      setFetchError(msg);
+      if (hasLoadedRef.current) {
+        toast.error(msg, 'Sync Issue');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [user, period]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnalytics();
+    }, [fetchAnalytics])
+  );
+
   useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
+    if (syncTick > 0) {
+      fetchAnalytics();
+    }
+  }, [syncTick, fetchAnalytics]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -75,25 +101,78 @@ export default function AnalyticsScreen() {
   };
 
   const handleExport = async () => {
-    if (!user) return;
-    const txns = await transactionService.getTransactions(user.id);
-    await exportTransactionsToCSV(txns);
+    try {
+      if (isDemo) {
+        await exportTransactionsToCSV(demoTransactions);
+        return;
+      }
+      if (!user) return;
+      const txns = await transactionService.getTransactions(user.id);
+      await exportTransactionsToCSV(txns);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Could not export transactions.'), 'Export Failed');
+    }
   };
 
-  if (loading && !refreshing) {
+  void demoTransactions;
+  const demoSummary = getDemoAnalytics(period);
+
+  const activeSummary = isDemo ? demoSummary : data;
+  const currency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+
+  const totalIncome = activeSummary?.totalIncome || 0;
+  const totalExpenses = activeSummary?.totalExpenses || 0;
+  const netSavings = activeSummary?.netSavings || 0;
+  const savingsRate = activeSummary?.savingsRate || 0;
+
+  const chartData = useMemo(
+    () =>
+      (activeSummary?.monthlyComparison || []).map((m) => ({
+        month: m.month,
+        income: m.income,
+        expense: m.expense,
+      })),
+    [activeSummary]
+  );
+
+  const categoryBreakdown = useMemo(
+    () =>
+      (activeSummary?.categoryBreakdown || []).map((c) => ({
+        categoryName: c.name,
+        amount: c.amount,
+        percentage: c.percentage,
+        color: c.color,
+        icon: c.icon || 'tag',
+      })),
+    [activeSummary]
+  );
+
+  if (loading && !refreshing && !isDemo) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Header title="Analytics & Reports" showBack />
+        <Header title="Financial Analytics" showBack />
         <LoadingState message="Aggregating financial trends..." />
       </View>
     );
   }
 
-  const chartData = (data?.monthlyComparison || []).map((m) => ({
-    month: m.month,
-    income: m.income,
-    expense: m.expense,
-  }));
+  if (!loading && !isDemo && !data && fetchError) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header title="Financial Analytics" showBack />
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <ErrorState
+            title="Could Not Load Analytics"
+            message={fetchError}
+            onRetry={() => {
+              setLoading(true);
+              fetchAnalytics();
+            }}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -101,9 +180,16 @@ export default function AnalyticsScreen() {
         title="Financial Analytics"
         showBack
         rightAction={
-          <TouchableOpacity onPress={handleExport} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Download size={20} color={colors.mainText} />
-          </TouchableOpacity>
+          <View style={styles.headerRightRow}>
+            {isDemo ? <DemoDataBadge compact /> : null}
+            <TouchableOpacity
+              onPress={handleExport}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Export CSV"
+            >
+              <Download size={19} color={colors.mainText} />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -122,24 +208,34 @@ export default function AnalyticsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Period Selector Tabs */}
-        <View style={[styles.periodTabs, { backgroundColor: colors.surface }]}>
+        <View
+          style={[
+            styles.periodTabs,
+            { backgroundColor: colors.elevatedSurface, borderColor: colors.borderLight },
+          ]}
+        >
           {PERIODS.map((p) => {
             const isSelected = period === p.value;
             return (
               <TouchableOpacity
                 key={p.value}
                 onPress={() => setPeriod(p.value)}
+                activeOpacity={0.7}
                 style={[
                   styles.tab,
                   {
-                    backgroundColor: isSelected ? colors.primary : 'transparent',
+                    backgroundColor: isSelected ? colors.surface : 'transparent',
+                    borderColor: isSelected ? colors.borderLight : 'transparent',
+                    borderWidth: isSelected ? StyleSheet.hairlineWidth : 0,
                   },
                 ]}
               >
                 <Text
-                  variant="sm"
+                  variant="xs"
                   weight={isSelected ? 'bold' : 'medium'}
-                  style={{ color: isSelected ? '#0B0F14' : colors.secondaryText }}
+                  style={{
+                    color: isSelected ? colors.mainText : colors.secondaryText,
+                  }}
                 >
                   {p.label}
                 </Text>
@@ -148,123 +244,144 @@ export default function AnalyticsScreen() {
           })}
         </View>
 
-        {/* High-Level Net Metrics */}
-        <Card elevated style={styles.metricsCard}>
-          <View style={styles.metricRow}>
-            <View style={styles.metricCol}>
-              <View style={styles.metricIconRow}>
-                <View style={[styles.miniCircle, { backgroundColor: colors.successMuted }]}>
-                  <ArrowDownLeft size={14} color={colors.success} />
-                </View>
+        {/* Financial Net Summary Card */}
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          ]}
+        >
+          <View style={styles.summaryTopRow}>
+            <View>
+              <Text variant="xs" color="secondary" weight="semibold">
+                NET SAVINGS ({period.toUpperCase()})
+              </Text>
+              <Text
+                variant="2xl"
+                weight="extrabold"
+                style={{
+                  color: netSavings >= 0 ? colors.positive : colors.negative,
+                  marginTop: 2,
+                }}
+              >
+                {netSavings >= 0 ? '+' : ''}
+                {formatCurrency(netSavings, currency)}
+              </Text>
+            </View>
+
+            <View
+              style={[
+                styles.savingsRatePill,
+                {
+                  backgroundColor:
+                    savingsRate >= 50
+                      ? colors.successMuted
+                      : colors.warningMuted,
+                },
+              ]}
+            >
+              <Text
+                variant="xs"
+                weight="bold"
+                style={{ color: savingsRate >= 50 ? colors.positive : colors.warning }}
+              >
+                {savingsRate}% Saved
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+
+          <View style={styles.inOutRow}>
+            <View style={styles.inOutItem}>
+              <View style={styles.iconDotRow}>
+                <ArrowDownLeft size={13} color={colors.positive} />
                 <Text variant="xs" color="secondary">
                   Total Income
                 </Text>
               </View>
-              <CurrencyText
-                amount={data?.totalIncome ?? 0}
-                currency={profile?.currency || 'INR'}
-                variant="lg"
-                weight="bold"
-                style={{ color: colors.success }}
-              />
+              <Text variant="sm" weight="bold" style={{ color: colors.positive, marginTop: 2 }}>
+                {formatCurrency(totalIncome, currency)}
+              </Text>
             </View>
 
-            <View style={[styles.vLine, { backgroundColor: colors.border }]} />
+            <View style={[styles.vLine, { backgroundColor: colors.borderLight }]} />
 
-            <View style={styles.metricCol}>
-              <View style={styles.metricIconRow}>
-                <View style={[styles.miniCircle, { backgroundColor: colors.errorMuted }]}>
-                  <ArrowUpRight size={14} color={colors.error} />
-                </View>
+            <View style={styles.inOutItem}>
+              <View style={styles.iconDotRow}>
+                <ArrowUpRight size={13} color={colors.negative} />
                 <Text variant="xs" color="secondary">
                   Total Expenses
                 </Text>
               </View>
-              <CurrencyText
-                amount={data?.totalExpenses ?? 0}
-                currency={profile?.currency || 'INR'}
-                variant="lg"
-                weight="bold"
-                style={{ color: colors.error }}
-              />
-            </View>
-          </View>
-
-          <View style={[styles.hLine, { backgroundColor: colors.border }]} />
-
-          <View style={styles.netSavingsRow}>
-            <View>
-              <Text variant="xs" color="secondary">
-                Net Savings
+              <Text variant="sm" weight="bold" style={{ color: colors.negative, marginTop: 2 }}>
+                {formatCurrency(totalExpenses, currency)}
               </Text>
-              <CurrencyText
-                amount={data?.netSavings ?? 0}
-                currency={profile?.currency || 'INR'}
-                variant="xl"
-                weight="extrabold"
-              />
             </View>
-            <Badge
-              label={`${data?.savingsRate ?? 0}% Saved`}
-              variant={(data?.netSavings ?? 0) >= 0 ? 'success' : 'error'}
-              size="md"
-            />
           </View>
-        </Card>
+        </View>
 
-        {/* Comparison Chart */}
-        <Card elevated style={styles.chartCard}>
-          <Text variant="base" weight="bold" style={styles.cardTitle}>
-            Income vs Expenses Trends
-          </Text>
-          <MonthlyBarChart data={chartData} height={190} />
+        {/* Income vs Expenses Chart */}
+        <Card elevated style={styles.sectionCard}>
+          <View style={styles.sectionTitleRow}>
+            <TrendingUp size={17} color={colors.secondary} />
+            <Text variant="sm" weight="bold">
+              Income vs Expenses Trends
+            </Text>
+          </View>
+          <IncomeExpenseChart data={chartData} height={180} />
         </Card>
 
         {/* Category Breakdown */}
-        {data?.categoryBreakdown && data.categoryBreakdown.length > 0 ? (
-          <Card elevated style={styles.categoryCard}>
-            <Text variant="base" weight="bold" style={styles.cardTitle}>
-              Spending by Category
-            </Text>
-            {data.categoryBreakdown.map((c, idx) => (
+        {categoryBreakdown.length > 0 ? (
+          <Card elevated style={styles.sectionCard}>
+            <View style={styles.sectionTitleRow}>
+              <PieChart size={17} color={colors.primary} />
+              <Text variant="sm" weight="bold">
+                Category Spending Breakdown
+              </Text>
+            </View>
+
+            {categoryBreakdown.map((cat, idx) => (
               <CategoryProgressRow
                 key={idx}
-                category={c.name}
-                amount={c.amount}
-                percentage={c.percentage}
-                color={c.color}
+                category={cat.categoryName}
+                amount={cat.amount}
+                percentage={cat.percentage}
+                color={cat.color}
               />
             ))}
           </Card>
         ) : null}
 
-        {/* Highest Expense Items */}
-        {data?.topExpenses && data.topExpenses.length > 0 ? (
-          <Card elevated style={styles.topCard}>
-            <Text variant="base" weight="bold" style={styles.cardTitle}>
-              Largest Expenses
+        {/* Financial Insights */}
+        <View style={styles.insightsSection}>
+          <View style={styles.insightsHeader}>
+            <Sparkles size={16} color={colors.primary} />
+            <Text variant="sm" weight="bold">
+              Automated Insights
             </Text>
-            {data.topExpenses.map((txn) => (
-              <View key={txn.id} style={styles.topExpenseRow}>
-                <View style={styles.topInfo}>
-                  <Text variant="sm" weight="semibold">
-                    {txn.title}
-                  </Text>
-                  <Text variant="xs" color="secondary">
-                    {txn.category?.name || 'General'} • {txn.date}
-                  </Text>
-                </View>
-                <CurrencyText
-                  amount={txn.amount}
-                  currency={profile?.currency || 'INR'}
-                  variant="sm"
-                  weight="bold"
-                  style={{ color: colors.error }}
-                />
+          </View>
+
+          {DEMO_ANALYTICS_INSIGHTS.map((insight) => (
+            <View
+              key={insight.id}
+              style={[
+                styles.insightCard,
+                { backgroundColor: colors.surface, borderColor: colors.borderLight },
+              ]}
+            >
+              <View style={styles.insightTop}>
+                <Text variant="xs" weight="bold" color="primary">
+                  {insight.title.toUpperCase()}
+                </Text>
               </View>
-            ))}
-          </Card>
-        ) : null}
+              <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 2 }}>
+                {insight.description}
+              </Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -274,84 +391,95 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
   },
   periodTabs: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
     padding: 3,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 7,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
   },
-  metricsCard: {
+  summaryCard: {
     padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
     marginBottom: Spacing.md,
   },
-  metricRow: {
+  summaryTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  savingsRatePill: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  divider: {
+    height: 1,
+    marginVertical: Spacing.md,
+  },
+  inOutRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  metricCol: {
+  inOutItem: {
     flex: 1,
   },
-  metricIconRow: {
+  iconDotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  vLine: {
+    width: 1,
+    height: 36,
+    marginHorizontal: Spacing.md,
+  },
+  sectionCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.md,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  insightsSection: {
+    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  insightsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 4,
+    paddingLeft: Spacing.xs,
   },
-  miniCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  insightCard: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
   },
-  vLine: {
-    width: 1,
-    height: 40,
-    marginHorizontal: Spacing.md,
-  },
-  hLine: {
-    height: 1,
-    marginVertical: Spacing.md,
-  },
-  netSavingsRow: {
+  insightTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chartCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  cardTitle: {
-    marginBottom: Spacing.md,
-  },
-  categoryCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  topCard: {
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  topExpenseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  topInfo: {
-    gap: 2,
   },
 });
-

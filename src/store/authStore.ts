@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, Subscription } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
 import { Profile } from '../types/database';
+import { useSyncStore } from './syncStore';
 
 interface AuthState {
   user: User | null;
@@ -17,6 +18,8 @@ interface AuthState {
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 }
+
+let authSubscription: Subscription | null = null;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -33,10 +36,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) return;
     try {
-      const profile = await authService.getProfile(user.id);
-      if (profile) {
-        set({ profile });
-      }
+      const profile = await authService.ensureProfile(user);
+      set({ profile });
+      useSyncStore.getState().bumpSync();
     } catch (e) {
       console.warn('Failed to refresh profile:', e);
     }
@@ -50,41 +52,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } = await supabase.auth.getSession();
 
       if (session?.user) {
-        let profile = await authService.getProfile(session.user.id);
-        if (!profile) {
-          // Fallback initial profile in case trigger hasn't fired yet
-          profile = {
-            id: session.user.id,
-            full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
-            email: session.user.email || '',
-            currency: 'INR',
-            monthly_salary: 0,
-            salary_date: 1,
-            theme_preference: 'system',
-            notification_preferences: {
-              budget_alerts: true,
-              salary_reminder: true,
-              group_updates: true,
-              goal_progress: true,
-            },
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        }
-        set({ session, user: session.user, profile, isLoading: false, isInitialized: true });
+        const profile = await authService.ensureProfile(session.user);
+        set({
+          session,
+          user: session.user,
+          profile,
+          isLoading: false,
+          isInitialized: true,
+        });
       } else {
-        set({ session: null, user: null, profile: null, isLoading: false, isInitialized: true });
+        set({
+          session: null,
+          user: null,
+          profile: null,
+          isLoading: false,
+          isInitialized: true,
+        });
       }
 
-      // Listen for auth state changes
-      supabase.auth.onAuthStateChange(async (_event, newSession) => {
-        if (newSession?.user) {
-          const profile = await authService.getProfile(newSession.user.id);
-          set({ session: newSession, user: newSession.user, profile, isLoading: false });
-        } else {
-          set({ session: null, user: null, profile: null, isLoading: false });
-        }
-      });
+      if (!authSubscription) {
+        const { data } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+          if (newSession?.user) {
+            const profile = await authService.ensureProfile(newSession.user);
+            set({
+              session: newSession,
+              user: newSession.user,
+              profile,
+              isLoading: false,
+            });
+            useSyncStore.getState().bumpSync();
+          } else {
+            set({
+              session: null,
+              user: null,
+              profile: null,
+              isLoading: false,
+            });
+            useSyncStore.getState().bumpSync();
+          }
+        });
+        authSubscription = data.subscription;
+      }
     } catch (error) {
       console.warn('Auth initialization error:', error);
       set({ isLoading: false, isInitialized: true });
@@ -97,7 +105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await authService.signOut();
     } finally {
       set({ user: null, session: null, profile: null, isLoading: false });
+      useSyncStore.getState().bumpSync();
     }
   },
 }));
-

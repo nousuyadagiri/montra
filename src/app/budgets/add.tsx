@@ -1,23 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
+import { useDemoStore } from '../../store/demoStore';
+import { toast } from '../../store/toastStore';
+import { getErrorMessage } from '../../utils/errors';
 import { budgetService } from '../../services/budgetService';
 import { transactionService } from '../../services/transactionService';
-import { TransactionCategory } from '../../types/database';
-import { Text, Heading, Input, Button, Header, Card } from '../../components/ui';
+import { TransactionCategory, SupportedCurrency } from '../../types/database';
+import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
-import { Check, PieChart } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 
 export default function AddBudgetScreen() {
   const router = useRouter();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const isEditing = Boolean(editId);
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+
+  const demoCategories = useDemoStore((s) => s.demoCategories);
+  const demoBudgets = useDemoStore((s) => s.demoBudgets);
+  const demoProfile = useDemoStore((s) => s.demoProfile);
+  const createDemoBudget = useDemoStore((s) => s.createDemoBudget);
+  const updateDemoBudget = useDemoStore((s) => s.updateDemoBudget);
+
+  const isDemo = !user;
 
   const [name, setName] = useState('Monthly Budget');
   const [totalLimitStr, setTotalLimitStr] = useState('');
@@ -25,17 +38,57 @@ export default function AddBudgetScreen() {
   const [categories, setCategories] = useState<TransactionCategory[]>([]);
   const [categoryAllocations, setCategoryAllocations] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(!isDemo);
 
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
   useEffect(() => {
-    if (!user) return;
-    transactionService.getCategories(user.id, 'expense').then((cats) => {
-      setCategories(cats);
-    });
-  }, [user]);
+    if (isDemo) {
+      setCategories(demoCategories.filter((c) => c.type === 'expense'));
+      if (editId) {
+        const existing = demoBudgets.find((b) => b.id === editId);
+        if (existing) {
+          setName(existing.name);
+          setTotalLimitStr(String(existing.total_limit));
+          setPeriod(existing.period);
+          const allocs: Record<string, string> = {};
+          (existing.categories || []).forEach((c) => {
+            allocs[c.category_id] = String(c.allocated_amount);
+          });
+          setCategoryAllocations(allocs);
+        }
+      }
+      setInitialLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
+    setInitialLoading(true);
+    Promise.all([
+      transactionService.getCategories(user.id, 'expense'),
+      editId ? budgetService.getBudgetById(editId) : Promise.resolve(null),
+    ])
+      .then(([cats, existing]) => {
+        setCategories(cats);
+        if (existing) {
+          setName(existing.name);
+          setTotalLimitStr(String(existing.total_limit));
+          setPeriod(existing.period);
+          const allocs: Record<string, string> = {};
+          (existing.categories || []).forEach((c) => {
+            allocs[c.category_id] = String(c.allocated_amount);
+          });
+          setCategoryAllocations(allocs);
+        }
+      })
+      .catch((err) => toast.error(getErrorMessage(err, 'Failed to load budget options.')))
+      .finally(() => setInitialLoading(false));
+  }, [user, isDemo, editId, demoCategories, demoBudgets]);
 
   const handleAllocationChange = (catId: string, val: string) => {
     setCategoryAllocations((prev) => ({
@@ -45,15 +98,14 @@ export default function AddBudgetScreen() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
     const totalLimit = parseCurrencyInput(totalLimitStr);
 
     if (!name.trim()) {
-      Alert.alert('Required Field', 'Please provide a name for this budget.');
+      toast.warning('Please provide a name for this budget.', 'Budget Name Required');
       return;
     }
     if (totalLimit <= 0) {
-      Alert.alert('Invalid Limit', 'Please specify a total budget limit greater than zero.');
+      toast.warning('Please specify a total budget limit greater than zero.', 'Invalid Limit');
       return;
     }
 
@@ -66,29 +118,70 @@ export default function AddBudgetScreen() {
 
     try {
       setLoading(true);
-      await budgetService.createBudget(user.id, {
-        name: name.trim(),
-        period,
-        month: currentMonth,
-        year: currentYear,
-        totalLimit,
-        categories: catInputs,
-      });
+      if (isDemo) {
+        if (editId) {
+          updateDemoBudget(editId, {
+            name: name.trim(),
+            period,
+            month: currentMonth,
+            year: currentYear,
+            totalLimit,
+            categories: catInputs,
+          });
+        } else {
+          createDemoBudget({
+            name: name.trim(),
+            period,
+            month: currentMonth,
+            year: currentYear,
+            totalLimit,
+            categories: catInputs,
+          });
+        }
+      } else if (user) {
+        if (editId) {
+          await budgetService.updateBudget(editId, {
+            name: name.trim(),
+            period,
+            month: currentMonth,
+            year: currentYear,
+            totalLimit,
+            categories: catInputs,
+          });
+        } else {
+          await budgetService.createBudget(user.id, {
+            name: name.trim(),
+            period,
+            month: currentMonth,
+            year: currentYear,
+            totalLimit,
+            categories: catInputs,
+          });
+        }
+      }
 
+      toast.success(editId ? 'Budget updated successfully.' : `Budget "${name.trim()}" created!`);
       router.back();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to create budget.');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save budget.'));
     } finally {
       setLoading(false);
     }
   };
 
-  const currencySymbol = CURRENCY_SYMBOLS[profile?.currency || 'INR'] || '₹';
+  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Header title="Create Budget" showBack />
-      <ScrollView
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Header title={isEditing ? 'Edit Budget' : 'Create Budget'} showBack />
+      {initialLoading ? (
+        <LoadingState message="Loading categories..." />
+      ) : (
+        <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + Spacing.xl },
@@ -162,11 +255,12 @@ export default function AddBudgetScreen() {
           size="lg"
           loading={loading}
           onPress={handleSave}
-          leftIcon={<Check size={20} color="#0B0F14" />}
+          leftIcon={<Check size={20} color={colors.onPrimary} />}
           buttonStyle={{ marginTop: Spacing.xl }}
         />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
