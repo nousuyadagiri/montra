@@ -76,21 +76,27 @@ export default function ForgotPasswordScreen() {
   };
 
   const inputSurface = isDark ? colors.elevatedSurface : colors.background;
+  const activeStep = submittedEmail ? 2 : 1;
+  const recoverySteps = [
+    { step: 1, label: 'Email' },
+    { step: 2, label: 'Verify' },
+    { step: 3, label: 'Reset' },
+  ];
 
   return (
     <AuthShell
-      eyebrow={submittedEmail ? 'EMAIL SENT' : 'ACCOUNT RECOVERY'}
+      eyebrow={submittedEmail ? 'LINK DISPATCHED' : 'ACCOUNT RECOVERY'}
       title={submittedEmail ? 'Check your inbox' : 'Forgot password?'}
       subtitle={
         submittedEmail
-          ? 'Follow the secure link in your email to create a new password.'
+          ? 'Follow the secure link in your email to set a new password.'
           : "Enter your registered email and we'll send recovery steps."
       }
       icon={
         submittedEmail ? (
-          <MailCheck size={14} color={colors.success} />
+          <MailCheck size={16} color={colors.success} />
         ) : (
-          <KeyRound size={14} color={colors.accent} />
+          <KeyRound size={16} color={colors.primary} />
         )
       }
       imageSource={require('../../../assets/images/auth/auth-security.jpg')}
@@ -107,8 +113,8 @@ export default function ForgotPasswordScreen() {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.footerLinkRow}
             >
-              <LogIn size={14} color={colors.accent} />
-              <Text variant="sm" color={colors.accent} weight="bold">
+              <LogIn size={14} color={colors.primary} />
+              <Text variant="sm" color={colors.primary} weight="bold">
                 Sign In
               </Text>
             </TouchableOpacity>
@@ -116,6 +122,76 @@ export default function ForgotPasswordScreen() {
         ) : undefined
       }
     >
+      {/* Minimalist 3-Step Recovery Progress Strip */}
+      <View style={[styles.stepTrack, { borderBottomColor: colors.borderLight }]}>
+        {recoverySteps.map((item, idx) => {
+          const isCurrent = item.step === activeStep;
+          const isCompleted = item.step < activeStep;
+          return (
+            <React.Fragment key={item.step}>
+              <View style={styles.stepItem}>
+                <View
+                  style={[
+                    styles.stepDot,
+                    {
+                      backgroundColor: isCompleted
+                        ? colors.success
+                        : isCurrent
+                        ? colors.primary
+                        : inputSurface,
+                      borderColor: isCompleted
+                        ? colors.success
+                        : isCurrent
+                        ? colors.primary
+                        : colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="xs"
+                    weight="bold"
+                    style={{
+                      fontSize: 10,
+                      color:
+                        isCurrent || isCompleted
+                          ? colors.onPrimary
+                          : colors.secondaryText,
+                    }}
+                  >
+                    {item.step}
+                  </Text>
+                </View>
+                <Text
+                  variant="xs"
+                  weight={isCurrent ? 'bold' : 'medium'}
+                  style={{
+                    fontSize: 11.5,
+                    color: isCurrent
+                      ? colors.mainText
+                      : isCompleted
+                      ? colors.success
+                      : colors.tertiaryText,
+                  }}
+                >
+                  {item.label}
+                </Text>
+              </View>
+              {idx < recoverySteps.length - 1 ? (
+                <View
+                  style={[
+                    styles.stepConnector,
+                    {
+                      backgroundColor:
+                        item.step < activeStep ? colors.success : colors.borderLight,
+                    },
+                  ]}
+                />
+              ) : null}
+            </React.Fragment>
+          );
+        })}
+      </View>
+
       {submittedEmail ? (
         <View style={styles.successBox}>
           <View
@@ -124,7 +200,7 @@ export default function ForgotPasswordScreen() {
               { backgroundColor: colors.successMuted },
             ]}
           >
-            <CheckCircle2 size={32} color={colors.success} />
+            <CheckCircle2 size={28} color={colors.success} />
           </View>
 
           <Text variant="base" weight="bold" align="center">
@@ -155,7 +231,7 @@ export default function ForgotPasswordScreen() {
               title="Back to Sign In"
               variant="primary"
               size={isCompactHeight ? 'md' : 'lg'}
-              rightIcon={<ArrowRight size={18} color={colors.onPrimary} />}
+              rightIcon={<ArrowRight size={17} color={colors.onPrimary} />}
               onPress={() => router.replace('/(auth)/login')}
             />
             <Button
@@ -189,7 +265,7 @@ export default function ForgotPasswordScreen() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 error={errors.email?.message}
-                leftIcon={<Mail size={17} color={colors.secondaryText} />}
+                leftIcon={<Mail size={16} color={colors.secondaryText} strokeWidth={1.75} />}
               />
             )}
           />
@@ -200,14 +276,14 @@ export default function ForgotPasswordScreen() {
             size={isCompactHeight ? 'md' : 'lg'}
             loading={loading}
             onPress={handleSubmit(onSubmit)}
-            leftIcon={<Send size={17} color={colors.onPrimary} />}
+            leftIcon={<Send size={16} color={colors.onPrimary} />}
             buttonStyle={styles.submitButton}
           />
 
           <View style={styles.securityTip}>
             <Lock size={12} color={colors.tertiaryText} />
             <Text variant="xs" color="tertiary" style={styles.securityTipText}>
-              Recovery links are single-use and time-limited for safety
+              Single-use link · Expires automatically for safety
             </Text>
           </View>
         </View>
@@ -217,6 +293,32 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  stepTrack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: Spacing.md,
+    marginBottom: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepConnector: {
+    flex: 1,
+    height: 1,
+    marginHorizontal: 8,
+  },
   form: {
     width: '100%',
   },

@@ -15,27 +15,18 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image, ImageProps } from 'expo-image';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
-import {
-  ChevronLeft,
-  AlertCircle,
-  LogIn,
-  UserPlus,
-} from 'lucide-react-native';
+import { ChevronLeft, AlertCircle } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { Text } from '../ui';
 import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
 
 interface MontraMarkProps {
   size?: number;
-  primaryColor?: string;
-  onPrimaryColor?: string;
 }
 
 const MONTRA_BRAND_LOGO = require('../../../assets/images/brand-logo.png');
 
-export function MontraMark({
-  size = 32,
-}: MontraMarkProps) {
+export function MontraMark({ size = 32 }: MontraMarkProps) {
   const { colors } = useAppTheme();
   const radius = Math.round(size * 0.3);
 
@@ -46,7 +37,7 @@ export function MontraMark({
         height: size,
         borderRadius: radius,
         overflow: 'hidden',
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         backgroundColor: '#090F1B',
       }}
@@ -64,25 +55,25 @@ export function MontraMark({
 export function AuthAmbientBackground() {
   const { width, height } = useWindowDimensions();
   const { colors, isDark } = useAppTheme();
-  const glowHeight = Math.min(height, 560);
+  const glowHeight = Math.min(height, 520);
 
   return (
     <View style={[styles.ambientLayer, { height: glowHeight }]} pointerEvents="none">
       <Svg width={width} height={glowHeight}>
         <Defs>
-          <RadialGradient id="authGlowCenter" cx="50%" cy="22%" r="55%">
+          <RadialGradient id="authGlowCenter" cx="50%" cy="18%" r="58%">
             <Stop
               offset="0%"
               stopColor={colors.accent}
-              stopOpacity={isDark ? 0.16 : 0.11}
+              stopOpacity={isDark ? 0.11 : 0.07}
             />
             <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
           </RadialGradient>
-          <RadialGradient id="authGlowSecondary" cx="85%" cy="68%" r="48%">
+          <RadialGradient id="authGlowSecondary" cx="88%" cy="54%" r="45%">
             <Stop
               offset="0%"
               stopColor={colors.primary}
-              stopOpacity={isDark ? 0.1 : 0.06}
+              stopOpacity={isDark ? 0.07 : 0.04}
             />
             <Stop offset="100%" stopColor={colors.primary} stopOpacity={0} />
           </RadialGradient>
@@ -100,11 +91,7 @@ interface AuthModeTabsProps {
 
 function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
   const router = useRouter();
-  const { colors, isDark } = useAppTheme();
-
-  const trackBg = isDark ? colors.elevatedSurface : colors.background;
-  const activeBg = isDark ? colors.primaryMuted : colors.surface;
-  const activeBorder = isDark ? colors.accent : colors.border;
+  const { colors } = useAppTheme();
 
   const tabs: {
     id: 'login' | 'register';
@@ -116,23 +103,13 @@ function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
   ];
 
   return (
-    <View
-      style={[
-        styles.segmentedTrack,
-        {
-          backgroundColor: trackBg,
-          borderColor: colors.borderLight,
-        },
-      ]}
-    >
+    <View style={[styles.underlineTabsRow, { borderBottomColor: colors.borderLight }]}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
-        const iconColor = isActive ? colors.primary : colors.secondaryText;
-
         return (
           <TouchableOpacity
             key={tab.id}
-            activeOpacity={0.85}
+            activeOpacity={0.75}
             disabled={isActive}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
@@ -141,25 +118,10 @@ function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
                 router.replace(tab.route);
               }
             }}
-            style={[
-              styles.segmentedTab,
-              isActive
-                ? {
-                    backgroundColor: activeBg,
-                    borderColor: activeBorder,
-                    borderWidth: 1,
-                    ...(isDark ? {} : Shadows.sm),
-                  }
-                : styles.segmentedTabInactive,
-            ]}
+            style={styles.underlineTab}
           >
-            {tab.id === 'login' ? (
-              <LogIn size={14} color={iconColor} />
-            ) : (
-              <UserPlus size={14} color={iconColor} />
-            )}
             <Text
-              variant="xs"
+              variant="sm"
               weight={isActive ? 'bold' : 'medium'}
               style={{
                 color: isActive ? colors.mainText : colors.secondaryText,
@@ -167,6 +129,14 @@ function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
             >
               {tab.label}
             </Text>
+            <View
+              style={[
+                styles.underlineIndicator,
+                {
+                  backgroundColor: isActive ? colors.primary : 'transparent',
+                },
+              ]}
+            />
           </TouchableOpacity>
         );
       })}
@@ -250,9 +220,9 @@ export function AuthShell({
     setContentHeight(h);
   };
 
-  // Lock scroll when content fits cleanly; automatically enable scrolling if keyboard or error banners expand height.
+  // Keep layout locked to viewport when content fits; allow scrolling if keyboard or errors expand height
   const canScroll = isKeyboardVisible || (viewportHeight > 0 && contentHeight > viewportHeight + 4);
-  const artSize = compactSpacing ? 56 : isCompactHeight ? 64 : 74;
+  const artSize = compactSpacing ? 46 : isCompactHeight ? 50 : 54;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -279,7 +249,7 @@ export function AuthShell({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Floating Minimal Top Bar */}
+          {/* Minimal Top Navigation Row */}
           <View style={styles.topBar}>
             {showBack ? (
               <TouchableOpacity
@@ -292,11 +262,11 @@ export function AuthShell({
                   styles.backBtn,
                   {
                     backgroundColor: colors.surface,
-                    borderColor: colors.border,
+                    borderColor: isDark ? colors.border : colors.borderLight,
                   },
                 ]}
               >
-                <ChevronLeft size={20} color={colors.mainText} />
+                <ChevronLeft size={19} color={colors.mainText} strokeWidth={2.2} />
               </TouchableOpacity>
             ) : (
               <View style={styles.topBarPlaceholder} />
@@ -305,24 +275,16 @@ export function AuthShell({
             {rightSlot !== undefined ? (
               rightSlot
             ) : (
-              <View
-                style={[
-                  styles.brandPill,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.borderLight,
-                  },
-                ]}
-              >
+              <View style={styles.brandInline}>
                 <MontraMark size={22} />
-                <Text variant="xs" weight="extrabold" style={styles.brandName}>
+                <Text variant="xs" weight="bold" color="secondary" style={styles.brandName}>
                   MONTRA
                 </Text>
               </View>
             )}
           </View>
 
-          {/* Centered Auth Stage */}
+          {/* Balanced Centered Stage */}
           <View
             style={[
               styles.centerStage,
@@ -331,54 +293,64 @@ export function AuthShell({
               },
             ]}
           >
-            {/* Unified Centered Hero */}
+            {/* Editorial Split Hero Header */}
             <View
               style={[
-                styles.heroBlock,
-                { marginBottom: compactSpacing ? Spacing.sm + 2 : Spacing.md + 2 },
+                styles.heroRow,
+                { marginBottom: compactSpacing ? Spacing.sm + 4 : Spacing.lg },
               ]}
             >
+              <View style={styles.heroCopy}>
+                {eyebrow ? (
+                  <Text
+                    variant="xs"
+                    weight="bold"
+                    style={[styles.eyebrowText, { color: colors.primary }]}
+                  >
+                    {eyebrow}
+                  </Text>
+                ) : null}
+
+                <Text
+                  variant="2xl"
+                  weight="extrabold"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={[styles.title, compactSpacing && styles.titleCompact]}
+                >
+                  {title}
+                </Text>
+
+                <Text
+                  variant="sm"
+                  color="secondary"
+                  numberOfLines={2}
+                  style={styles.subtitle}
+                >
+                  {subtitle}
+                </Text>
+              </View>
+
               {imageSource ? (
                 <View
                   style={[
-                    styles.artWrapper,
-                    { marginBottom: compactSpacing ? Spacing.xs + 2 : Spacing.sm + 2 },
+                    styles.artFrame,
+                    {
+                      width: artSize,
+                      height: artSize,
+                      borderRadius: compactSpacing ? 14 : 16,
+                      borderColor: isDark ? colors.border : colors.borderLight,
+                      backgroundColor: colors.surface,
+                    },
+                    !isDark ? Shadows.sm : undefined,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.artFrame,
-                      {
-                        width: artSize,
-                        height: artSize,
-                        borderRadius: compactSpacing ? 18 : 22,
-                        borderColor: colors.border,
-                        backgroundColor: colors.surface,
-                      },
-                      !isDark ? Shadows.md : Shadows.sm,
-                    ]}
-                  >
-                    <Image
-                      source={imageSource}
-                      style={styles.fillImage}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  </View>
-                  {icon ? (
-                    <View
-                      style={[
-                        styles.floatingBadge,
-                        {
-                          backgroundColor: colors.surface,
-                          borderColor: colors.border,
-                        },
-                        Shadows.sm,
-                      ]}
-                    >
-                      {icon}
-                    </View>
-                  ) : null}
+                  <Image
+                    source={imageSource}
+                    style={styles.fillImage}
+                    contentFit="cover"
+                    transition={180}
+                  />
                 </View>
               ) : icon ? (
                 <View
@@ -393,64 +365,30 @@ export function AuthShell({
                   {icon}
                 </View>
               ) : null}
-
-              {eyebrow ? (
-                <View
-                  style={[
-                    styles.eyebrowPill,
-                    {
-                      backgroundColor: colors.softAccent,
-                      borderColor: colors.borderLight,
-                      marginBottom: compactSpacing ? 4 : 6,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="xs"
-                    weight="bold"
-                    style={[styles.eyebrowText, { color: colors.accent }]}
-                  >
-                    {eyebrow}
-                  </Text>
-                </View>
-              ) : null}
-
-              <Text
-                variant="2xl"
-                weight="extrabold"
-                align="center"
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[styles.title, compactSpacing && styles.titleCompact]}
-              >
-                {title}
-              </Text>
-
-              <Text
-                variant="sm"
-                color="secondary"
-                align="center"
-                numberOfLines={compactSpacing ? 1 : 2}
-                style={styles.subtitle}
-              >
-                {subtitle}
-              </Text>
             </View>
 
-            {/* Elevated Modern Surface Card */}
+            {/* Clean Architectural Form Surface */}
             <View
               style={[
                 styles.authCard,
                 {
                   backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  padding: compactSpacing ? Spacing.md + 2 : Spacing.lg + 2,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                  paddingHorizontal: compactSpacing ? Spacing.md + 4 : Spacing.lg + 2,
+                  paddingTop: activeTab
+                    ? compactSpacing
+                      ? Spacing.sm
+                      : Spacing.sm + 4
+                    : compactSpacing
+                    ? Spacing.md + 2
+                    : Spacing.lg + 2,
+                  paddingBottom: compactSpacing ? Spacing.md + 2 : Spacing.lg + 2,
                 },
-                isDark ? Shadows.md : Shadows.lg,
+                !isDark ? Shadows.sm : undefined,
               ]}
             >
               {activeTab ? (
-                <View style={{ marginBottom: compactSpacing ? Spacing.sm + 2 : Spacing.md }}>
+                <View style={{ marginBottom: compactSpacing ? Spacing.sm + 4 : Spacing.md + 2 }}>
                   <AuthModeTabs activeTab={activeTab} />
                 </View>
               ) : null}
@@ -475,12 +413,11 @@ export function AuthShell({
               <View style={styles.formBody}>{children}</View>
             </View>
 
-            {/* Compact Footer Tucked Naturally Below Card */}
             {footer ? (
               <View
                 style={[
                   styles.footerSlot,
-                  { marginTop: compactSpacing ? Spacing.sm + 2 : Spacing.md + 2 },
+                  { marginTop: compactSpacing ? Spacing.sm + 4 : Spacing.md + 4 },
                 ]}
               >
                 {footer}
@@ -524,109 +461,91 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandPill: {
+  brandInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs + 2,
-    paddingVertical: 5,
-    paddingLeft: 6,
-    paddingRight: 11,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
   },
   brandName: {
-    letterSpacing: 1.6,
+    letterSpacing: 1.8,
+    fontSize: 11,
   },
   centerStage: {
     flex: 1,
     justifyContent: 'center',
   },
-  heroBlock: {
+  heroRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: 2,
   },
-  artWrapper: {
-    position: 'relative',
+  heroCopy: {
+    flex: 1,
+  },
+  eyebrowText: {
+    fontSize: 10.5,
+    letterSpacing: 1.4,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 28,
+    lineHeight: 33,
+    letterSpacing: -0.8,
+    marginBottom: 4,
+  },
+  titleCompact: {
+    fontSize: 24,
+    lineHeight: 29,
+    marginBottom: 2,
+  },
+  subtitle: {
+    lineHeight: 19,
   },
   artFrame: {
-    borderWidth: 1.25,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
-  },
-  floatingBadge: {
-    position: 'absolute',
-    bottom: -5,
-    right: -5,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   fillImage: {
     width: '100%',
     height: '100%',
   },
   heroIconBadge: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  eyebrowPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  eyebrowText: {
-    fontSize: 10,
-    letterSpacing: 1.2,
-  },
-  title: {
-    fontSize: 26,
-    lineHeight: 31,
-    letterSpacing: -0.6,
-    marginBottom: 2,
-  },
-  titleCompact: {
-    fontSize: 23,
-    lineHeight: 28,
-  },
-  subtitle: {
-    lineHeight: 19,
-    maxWidth: 300,
   },
   authCard: {
     width: '100%',
     borderRadius: BorderRadius['2xl'],
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  segmentedTrack: {
+  underlineTabsRow: {
     flexDirection: 'row',
-    padding: 4,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  segmentedTab: {
+  underlineTab: {
     flex: 1,
-    height: 36,
-    borderRadius: BorderRadius.md,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    paddingVertical: Spacing.sm + 2,
+    position: 'relative',
   },
-  segmentedTabInactive: {
-    borderWidth: 1,
-    borderColor: 'transparent',
+  underlineIndicator: {
+    position: 'absolute',
+    bottom: -0.5,
+    left: Spacing.md,
+    right: Spacing.md,
+    height: 2,
+    borderRadius: 2,
   },
   errorBanner: {
     flexDirection: 'row',

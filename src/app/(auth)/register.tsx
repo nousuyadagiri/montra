@@ -95,14 +95,22 @@ export default function RegisterScreen() {
 
   return (
     <AuthShell
-      eyebrow="GET STARTED"
+      eyebrow="NEW WORKSPACE"
       title="Create account"
-      subtitle="Set up your personal wealth and split workspace."
-      icon={<UserPlus size={14} color={colors.accent} />}
+      subtitle="Set up your personal wealth & split workspace."
+      icon={<UserPlus size={16} color={colors.primary} />}
       imageSource={require('../../../assets/images/auth/welcome-clarity.jpg')}
       activeTab="register"
       compactSpacing
       errorMessage={errorMessage}
+      footer={
+        <View style={styles.trustRow}>
+          <ShieldCheck size={13} color={colors.tertiaryText} />
+          <Text variant="xs" color="tertiary" style={styles.trustText}>
+            Private by design · Encrypted Supabase storage
+          </Text>
+        </View>
+      }
     >
       <View style={styles.form}>
         <Controller
@@ -121,7 +129,7 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.fullName?.message}
-              leftIcon={<User size={16} color={colors.secondaryText} />}
+              leftIcon={<User size={15} color={colors.secondaryText} strokeWidth={1.75} />}
             />
           )}
         />
@@ -144,7 +152,7 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.email?.message}
-              leftIcon={<Mail size={16} color={colors.secondaryText} />}
+              leftIcon={<Mail size={15} color={colors.secondaryText} strokeWidth={1.75} />}
             />
           )}
         />
@@ -164,7 +172,7 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.password?.message}
-              leftIcon={<Lock size={16} color={colors.secondaryText} />}
+              leftIcon={<Lock size={15} color={colors.secondaryText} strokeWidth={1.75} />}
             />
           )}
         />
@@ -184,21 +192,21 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.confirmPassword?.message}
-              leftIcon={<ShieldCheck size={16} color={colors.secondaryText} />}
+              leftIcon={<ShieldCheck size={15} color={colors.secondaryText} strokeWidth={1.75} />}
             />
           )}
         />
 
-        {/* Compact Single-Row Currency Selector */}
+        {/* Symmetric Minimalist Currency Selector */}
         <Controller
           control={control}
           name="currency"
           render={({ field: { value, onChange } }) => (
-            <View style={styles.currencyRowWrapper}>
-              <View style={styles.currencyLabelGroup}>
-                <Coins size={14} color={colors.secondaryText} />
-                <Text variant="xs" weight="medium" color="secondary">
-                  Currency
+            <View style={styles.currencyBlock}>
+              <View style={styles.currencyHeader}>
+                <Coins size={12} color={colors.secondaryText} />
+                <Text variant="xs" weight="medium" color="secondary" style={styles.currencyLabel}>
+                  Primary currency
                 </Text>
               </View>
               <View style={styles.currencyPills}>
@@ -215,12 +223,9 @@ export default function RegisterScreen() {
                         styles.currencyTile,
                         {
                           backgroundColor: isSelected
-                            ? isDark
-                              ? colors.primaryMuted
-                              : colors.softAccent
+                            ? colors.primaryMuted
                             : inputSurface,
                           borderColor: isSelected ? colors.primary : colors.border,
-                          borderWidth: isSelected ? 1.5 : 1,
                         },
                       ]}
                     >
@@ -259,20 +264,20 @@ const styles = StyleSheet.create({
   form: {
     width: '100%',
   },
-  currencyRowWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+  currencyBlock: {
     marginTop: 2,
     marginBottom: Spacing.sm + 4,
   },
-  currencyLabelGroup: {
+  currencyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    marginBottom: 6,
+  },
+  currencyLabel: {
+    fontSize: 12,
   },
   currencyPills: {
-    flex: 1,
     flexDirection: 'row',
     gap: 6,
   },
@@ -282,8 +287,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
   },
   submitButton: {
     marginTop: 2,
+  },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  trustText: {
+    fontSize: 11,
   },
 });

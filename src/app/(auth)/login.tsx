@@ -75,10 +75,10 @@ export default function LoginScreen() {
 
   return (
     <AuthShell
-      eyebrow="WELCOME BACK"
+      eyebrow="ACCOUNT ACCESS"
       title="Welcome back"
-      subtitle="Sign in to manage your wealth & shared splits."
-      icon={<KeyRound size={14} color={colors.accent} />}
+      subtitle="Access your accounts, budgets & shared splits."
+      icon={<KeyRound size={16} color={colors.primary} />}
       imageSource={require('../../../assets/images/auth/auth-security.jpg')}
       activeTab="login"
       compactSpacing={isCompactHeight}
@@ -87,7 +87,7 @@ export default function LoginScreen() {
         <View style={styles.trustRow}>
           <ShieldCheck size={13} color={colors.tertiaryText} />
           <Text variant="xs" color="tertiary" style={styles.trustText}>
-            Protected by end-to-end TLS & Row-Level Security
+            End-to-end TLS · Row-level security
           </Text>
         </View>
       }
@@ -111,7 +111,7 @@ export default function LoginScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.email?.message}
-              leftIcon={<Mail size={17} color={colors.secondaryText} />}
+              leftIcon={<Mail size={16} color={colors.secondaryText} strokeWidth={1.75} />}
             />
           )}
         />
@@ -127,7 +127,7 @@ export default function LoginScreen() {
                   onPress={() => router.push('/(auth)/forgot-password')}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text variant="xs" color={colors.accent} weight="semibold">
+                  <Text variant="xs" color={colors.primary} weight="semibold">
                     Forgot password?
                   </Text>
                 </TouchableOpacity>
@@ -142,7 +142,7 @@ export default function LoginScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.password?.message}
-              leftIcon={<Lock size={17} color={colors.secondaryText} />}
+              leftIcon={<Lock size={16} color={colors.secondaryText} strokeWidth={1.75} />}
             />
           )}
         />
@@ -153,7 +153,7 @@ export default function LoginScreen() {
           size={isCompactHeight ? 'md' : 'lg'}
           loading={loading}
           onPress={handleSubmit(onSubmit)}
-          rightIcon={<ArrowRight size={18} color={colors.onPrimary} />}
+          rightIcon={<ArrowRight size={17} color={colors.onPrimary} />}
           buttonStyle={styles.submitButton}
         />
       </View>
