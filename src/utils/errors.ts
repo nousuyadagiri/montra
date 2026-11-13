@@ -10,7 +10,7 @@ export function getErrorMessage(error: unknown, fallback = 'Something went wrong
   const raw = (errObj.message || '').trim();
   const code = errObj.code || '';
 
-  if (/network request failed|failed to fetch|networkerror/i.test(raw)) {
+  if (/network request failed|failed to fetch|networkerror|unknownhostexception|fetch failed|unable to resolve host|econnrefused/i.test(raw)) {
     return 'Unable to connect right now. Please check your internet connection and try again.';
   }
   if (/jwt expired|invalid jwt|refresh_token_not_found|session.*missing|not authenticated/i.test(raw)) {

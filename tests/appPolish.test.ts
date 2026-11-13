@@ -34,6 +34,11 @@ describe('getErrorMessage', () => {
       /profile record/i
     );
     expect(getErrorMessage({ message: 'Network request failed' })).toMatch(/internet connection/i);
+    expect(
+      getErrorMessage({
+        message: 'fetch failed: java.net.UnknownHostException: Unable to resolve host "placeholder.supabase.co"',
+      })
+    ).toMatch(/internet connection/i);
     expect(getErrorMessage(null, 'Custom fallback')).toBe('Custom fallback');
   });
 });
