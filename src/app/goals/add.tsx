@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
@@ -9,27 +16,46 @@ import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
 import { savingsService } from '../../services/savingsService';
 import { SupportedCurrency } from '../../types/database';
-import { Text, Input, Button, Header, Card, LoadingState, DatePickerField } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import {
+  Text,
+  Input,
+  Button,
+  Header,
+  LoadingState,
+  DatePickerField,
+} from '../../components/ui';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
-import { Calendar, Check } from 'lucide-react-native';
+import {
+  Check,
+  Plus,
+  ShieldCheck,
+  Plane,
+  Home,
+  Car,
+  Laptop,
+  PiggyBank,
+  Target,
+} from 'lucide-react-native';
 
 const GOAL_CATEGORIES = [
-  'Emergency Fund',
-  'Travel & Vacation',
-  'Home & Property',
-  'Vehicle',
-  'Gadget',
-  'Retirement',
-  'General',
+  { id: 'Emergency Fund', name: 'Emergency Fund', icon: ShieldCheck, color: '#10B981' },
+  { id: 'Travel & Vacation', name: 'Travel & Vacation', icon: Plane, color: '#0EA5E9' },
+  { id: 'Home & Property', name: 'Home & Property', icon: Home, color: '#EC4899' },
+  { id: 'Vehicle', name: 'Vehicle', icon: Car, color: '#F59E0B' },
+  { id: 'Gadget', name: 'Gadget & Tech', icon: Laptop, color: '#8B5CF6' },
+  { id: 'Retirement', name: 'Retirement', icon: PiggyBank, color: '#14B8A6' },
+  { id: 'General', name: 'General', icon: Target, color: '#6366F1' },
 ];
+
+const PRESET_AMOUNTS = [10000, 25000, 50000, 100000];
 
 export default function AddGoalScreen() {
   const router = useRouter();
   const { editId } = useLocalSearchParams<{ editId?: string }>();
   const isEditing = Boolean(editId);
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
 
@@ -80,6 +106,11 @@ export default function AddGoalScreen() {
       .catch((err) => toast.error(getErrorMessage(err, 'Failed to load goal details.')))
       .finally(() => setInitialLoading(false));
   }, [editId, isDemo, demoGoals]);
+
+  const handlePresetSelect = (preset: number) => {
+    const cur = parseCurrencyInput(targetAmountStr);
+    setTargetAmountStr(String(cur > 0 ? cur + preset : preset));
+  };
 
   const handleSave = async () => {
     const targetAmount = parseCurrencyInput(targetAmountStr);
@@ -143,7 +174,8 @@ export default function AddGoalScreen() {
     }
   };
 
-  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const activeCurrency: SupportedCurrency =
+    ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
   const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
 
   return (
@@ -156,96 +188,163 @@ export default function AddGoalScreen() {
         <LoadingState message="Loading goal details..." />
       ) : (
         <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Input
-          label="Goal Name"
-          placeholder="e.g. 6-Month Emergency Fund"
-          value={name}
-          onChangeText={setName}
-        />
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing.xxl },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* TARGET AMOUNT HERO CARD */}
+          <View
+            style={[
+              styles.amountCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.amountCardHeader}>
+              <Target size={13} color={colors.secondaryText} />
+              <Text variant="xs" color="secondary" weight="bold" style={styles.amountCardLabel}>
+                TARGET SAVINGS AMOUNT
+              </Text>
+            </View>
 
-        <Card elevated style={styles.amountCard}>
-          <Text variant="xs" color="secondary" weight="semibold">
-            TARGET AMOUNT
-          </Text>
-          <View style={styles.amountInputRow}>
-            <Text variant="3xl" weight="bold" color="secondary">
-              {currencySymbol}
-            </Text>
-            <Input
-              placeholder="100000"
-              keyboardType="decimal-pad"
-              value={targetAmountStr}
-              onChangeText={setTargetAmountStr}
-              inputStyle={styles.bigAmountInput}
-              containerStyle={styles.amountContainer}
-            />
-          </View>
-        </Card>
+            <View style={styles.amountInputRow}>
+              <Text variant="3xl" weight="extrabold" style={{ color: colors.primary, marginRight: 4 }}>
+                {currencySymbol}
+              </Text>
+              <Input
+                placeholder="100000"
+                keyboardType="decimal-pad"
+                value={targetAmountStr}
+                onChangeText={setTargetAmountStr}
+                inputStyle={styles.bigAmountInput}
+                containerStyle={styles.amountContainer}
+              />
+            </View>
 
-        <Input
-          label="Already Saved (Optional)"
-          placeholder="0.00"
-          prefix={currencySymbol}
-          keyboardType="decimal-pad"
-          value={currentAmountStr}
-          onChangeText={setCurrentAmountStr}
-        />
-
-        <DatePickerField
-          label="Target Date"
-          value={targetDate}
-          onChange={setTargetDate}
-        />
-
-        {/* Category Selector */}
-        <View style={styles.categorySection}>
-          <Text variant="sm" weight="medium" color="secondary" style={styles.sectionLabel}>
-            Goal Category
-          </Text>
-          <View style={styles.pillsRow}>
-            {GOAL_CATEGORIES.map((c) => {
-              const isSelected = category === c;
-              return (
+            {/* Quick Presets */}
+            <View style={styles.presetsRow}>
+              {PRESET_AMOUNTS.map((preset) => (
                 <TouchableOpacity
-                  key={c}
-                  onPress={() => setCategory(c)}
+                  key={preset}
                   style={[
-                    styles.pill,
+                    styles.presetChip,
                     {
-                      backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                      borderColor: colors.borderLight,
                     },
                   ]}
+                  onPress={() => handlePresetSelect(preset)}
+                  activeOpacity={0.7}
                 >
-                  <Text
-                    variant="xs"
-                    weight={isSelected ? 'bold' : 'regular'}
-                    style={{ color: isSelected ? colors.primary : colors.mainText }}
-                  >
-                    {c}
+                  <Plus size={10} color={colors.secondaryText} />
+                  <Text variant="xs" weight="bold" color="secondary">
+                    {currencySymbol}{preset >= 100000 ? `${preset / 100000}L` : `${preset / 1000}k`}
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
+              ))}
+            </View>
           </View>
-        </View>
 
-        <Button
-          title={isEditing ? 'Update Goal' : 'Create Goal'}
-          variant="primary"
-          size="lg"
-          loading={loading}
-          onPress={handleSave}
-          leftIcon={<Check size={20} color={colors.onPrimary} />}
-          buttonStyle={{ marginTop: Spacing.xl }}
-        />
+          {/* GOAL NAME */}
+          <Input
+            label="Goal Name"
+            placeholder="e.g. 6-Month Emergency Fund"
+            value={name}
+            onChangeText={setName}
+          />
+
+          {/* CATEGORY SELECTOR TILES */}
+          <View style={styles.categorySection}>
+            <Text variant="sm" weight="bold" style={styles.sectionLabel}>
+              Goal Category
+            </Text>
+            <View style={styles.categoryGrid}>
+              {GOAL_CATEGORIES.map((cat) => {
+                const isSelected = category === cat.id;
+                const CatIcon = cat.icon;
+
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => setCategory(cat.id)}
+                    style={[
+                      styles.categoryTile,
+                      {
+                        backgroundColor: isSelected
+                          ? `${cat.color}14`
+                          : colors.surface,
+                        borderColor: isSelected ? cat.color : colors.borderLight,
+                      },
+                      !isDark && !isSelected ? Shadows.sm : undefined,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[
+                        styles.catIconSquircle,
+                        {
+                          backgroundColor: `${cat.color}20`,
+                        },
+                      ]}
+                    >
+                      <CatIcon size={16} color={cat.color} strokeWidth={2.2} />
+                    </View>
+                    <Text
+                      variant="xs"
+                      weight={isSelected ? 'bold' : 'medium'}
+                      numberOfLines={1}
+                      style={{
+                        color: isSelected ? colors.mainText : colors.secondaryText,
+                        flex: 1,
+                        fontSize: 12,
+                      }}
+                    >
+                      {cat.name}
+                    </Text>
+                    {isSelected ? (
+                      <View style={[styles.checkCircle, { backgroundColor: cat.color }]}>
+                        <Check size={10} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ALREADY SAVED */}
+          <Input
+            label="Already Saved (Starting Balance)"
+            placeholder="0.00"
+            prefix={currencySymbol}
+            keyboardType="decimal-pad"
+            value={currentAmountStr}
+            onChangeText={setCurrentAmountStr}
+          />
+
+          {/* TARGET DATE PICKER */}
+          <DatePickerField
+            label="Target Date"
+            value={targetDate}
+            onChange={setTargetDate}
+          />
+
+          {/* SUBMIT BUTTON */}
+          <Button
+            title={isEditing ? 'Update Goal' : 'Create Goal'}
+            variant="primary"
+            size="lg"
+            loading={loading}
+            onPress={handleSave}
+            leftIcon={<Check size={18} color={colors.onPrimary} />}
+            buttonStyle={{ marginTop: Spacing.xl }}
+          />
         </ScrollView>
       )}
     </KeyboardAvoidingView>
@@ -258,17 +357,30 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+    paddingTop: Spacing.md,
   },
   amountCard: {
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
     alignItems: 'center',
   },
+  amountCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: Spacing.xs,
+  },
+  amountCardLabel: {
+    letterSpacing: 0.6,
+    fontSize: 11,
+  },
   amountInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    justifyContent: 'center',
+    marginVertical: Spacing.xs,
   },
   amountContainer: {
     marginBottom: 0,
@@ -276,25 +388,56 @@ const styles = StyleSheet.create({
   },
   bigAmountInput: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: '800',
     textAlign: 'center',
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    width: '100%',
+  },
+  presetChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: BorderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 3,
   },
   categorySection: {
     marginBottom: Spacing.lg,
   },
   sectionLabel: {
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
-  pillsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  categoryGrid: {
     gap: Spacing.xs,
   },
-  pill: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: BorderRadius.md,
+  categoryTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
+    gap: Spacing.sm,
+  },
+  catIconSquircle: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
-

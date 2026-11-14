@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,18 +10,61 @@ import { getErrorMessage } from '../../utils/errors';
 import { budgetService } from '../../services/budgetService';
 import { transactionService } from '../../services/transactionService';
 import { TransactionCategory, SupportedCurrency } from '../../types/database';
-import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
-import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
+import { Text, Input, Header, Card, LoadingState } from '../../components/ui';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
+import { CURRENCY_SYMBOLS, parseCurrencyInput, formatCurrency } from '../../utils/currency';
 import { deduplicateCategories } from '../../utils/categories';
-import { Check } from 'lucide-react-native';
+import {
+  Check,
+  PieChart,
+  Home,
+  Utensils,
+  Car,
+  ShoppingBag,
+  Zap,
+  Film,
+  Wifi,
+  Tag,
+  Sparkles,
+} from 'lucide-react-native';
+
+const AMOUNT_PRESETS = [5000, 10000, 25000];
+
+const getCategoryIconConfig = (name: string, isDark: boolean) => {
+  const n = (name || '').toLowerCase();
+  if (n.includes('rent') || n.includes('housing') || n.includes('flat')) {
+    return { Icon: Home, color: '#3B82F6', bg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' };
+  }
+  if (n.includes('food') || n.includes('dining') || n.includes('restaurant')) {
+    return { Icon: Utensils, color: '#10B981', bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' };
+  }
+  if (n.includes('grocer')) {
+    return { Icon: ShoppingBag, color: '#F59E0B', bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB' };
+  }
+  if (n.includes('transport') || n.includes('car') || n.includes('fuel')) {
+    return { Icon: Car, color: '#6366F1', bg: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF' };
+  }
+  if (n.includes('electric') || n.includes('power') || n.includes('bill') || n.includes('gas')) {
+    return { Icon: Zap, color: '#F59E0B', bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB' };
+  }
+  if (n.includes('shop') || n.includes('cloth')) {
+    return { Icon: ShoppingBag, color: '#EC4899', bg: isDark ? 'rgba(236, 72, 153, 0.15)' : '#FDF2F8' };
+  }
+  if (n.includes('internet') || n.includes('wifi')) {
+    return { Icon: Wifi, color: '#06B6D4', bg: isDark ? 'rgba(6, 182, 212, 0.15)' : '#ECFEFF' };
+  }
+  if (n.includes('entertainment') || n.includes('movie')) {
+    return { Icon: Film, color: '#8B5CF6', bg: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF' };
+  }
+  return { Icon: Tag, color: '#6B7280', bg: isDark ? 'rgba(107, 114, 128, 0.15)' : '#F3F4F6' };
+};
 
 export default function AddBudgetScreen() {
   const router = useRouter();
   const { editId } = useLocalSearchParams<{ editId?: string }>();
   const isEditing = Boolean(editId);
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
 
@@ -33,7 +76,7 @@ export default function AddBudgetScreen() {
 
   const isDemo = !user;
 
-  const [name, setName] = useState('Monthly Budget');
+  const [name, setName] = useState(isEditing ? '' : 'Monthly Living Budget');
   const [totalLimitStr, setTotalLimitStr] = useState('');
   const [period, setPeriod] = useState<'monthly' | 'weekly' | 'yearly'>('monthly');
   const [categories, setCategories] = useState<TransactionCategory[]>([]);
@@ -97,6 +140,23 @@ export default function AddBudgetScreen() {
       [catId]: val,
     }));
   };
+
+  const handleAddPreset = (increment: number) => {
+    const current = parseCurrencyInput(totalLimitStr) || 0;
+    setTotalLimitStr(String(current + increment));
+  };
+
+  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
+
+  // Budget calculations
+  const totalLimitNum = parseCurrencyInput(totalLimitStr) || 0;
+  const totalAllocatedNum = useMemo(() => {
+    return Object.values(categoryAllocations).reduce((sum, val) => sum + (parseCurrencyInput(val) || 0), 0);
+  }, [categoryAllocations]);
+
+  const unallocatedAmount = Math.max(0, totalLimitNum - totalAllocatedNum);
+  const allocatedPct = totalLimitNum > 0 ? Math.min(100, Math.round((totalAllocatedNum / totalLimitNum) * 100)) : 0;
 
   const handleSave = async () => {
     const totalLimit = parseCurrencyInput(totalLimitStr);
@@ -170,9 +230,6 @@ export default function AddBudgetScreen() {
     }
   };
 
-  const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
-  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
-
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -183,82 +240,198 @@ export default function AddBudgetScreen() {
         <LoadingState message="Loading categories..." />
       ) : (
         <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Input
-          label="Budget Name"
-          placeholder="e.g. November 2026 Budget"
-          value={name}
-          onChangeText={setName}
-        />
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing['3xl'] },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 1. Budget Name */}
+          <Input
+            label="Budget Name"
+            placeholder="e.g. Monthly Living Budget"
+            value={name}
+            onChangeText={setName}
+          />
 
-        <Card elevated style={styles.amountCard}>
-          <Text variant="xs" color="secondary" weight="semibold">
-            TOTAL MONTHLY LIMIT
-          </Text>
-          <View style={styles.amountInputRow}>
-            <Text variant="3xl" weight="bold" color="primary">
-              {currencySymbol}
-            </Text>
-            <Input
-              placeholder="50000"
-              keyboardType="decimal-pad"
-              value={totalLimitStr}
-              onChangeText={setTotalLimitStr}
-              inputStyle={styles.bigAmountInput}
-              containerStyle={styles.amountContainer}
-            />
-          </View>
-        </Card>
+          {/* 2. Hero Total Monthly Limit Card */}
+          <View
+            style={[
+              styles.heroAmountCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.md : undefined,
+            ]}
+          >
+            <View style={styles.heroOverlineRow}>
+              <PieChart size={14} color={colors.primary} />
+              <Text variant="xs" weight="bold" color="secondary" style={styles.heroOverline}>
+                TOTAL MONTHLY LIMIT
+              </Text>
+            </View>
 
-        {/* Category-Specific Limits */}
-        {categories.length > 0 ? (
-          <View style={styles.categorySection}>
-            <Text variant="sm" weight="semibold" color="secondary" style={styles.sectionLabel}>
-              CATEGORY BUDGET CAPS (OPTIONAL)
-            </Text>
-            <Card elevated style={styles.catCard}>
-              {categories.map((c) => (
-                <View key={c.id} style={styles.catRow}>
-                  <View style={styles.catNameGroup}>
-                    <View
-                      style={[styles.catColorCircle, { backgroundColor: c.color || colors.primary }]}
-                    />
-                    <Text variant="sm" weight="medium" style={styles.catName}>
-                      {c.name}
-                    </Text>
-                  </View>
-                  <View style={styles.catInputWrapper}>
-                    <Input
-                      placeholder="0.00"
-                      keyboardType="decimal-pad"
-                      prefix={currencySymbol}
-                      value={categoryAllocations[c.id] || ''}
-                      onChangeText={(val) => handleAllocationChange(c.id, val)}
-                      containerStyle={{ marginBottom: 0, width: 140 }}
-                      inputStyle={{ fontSize: 13, paddingVertical: 4 }}
-                    />
-                  </View>
-                </View>
+            <View style={styles.amountInputRow}>
+              <Input
+                placeholder="50000"
+                prefix={currencySymbol}
+                keyboardType="decimal-pad"
+                value={totalLimitStr}
+                onChangeText={setTotalLimitStr}
+                inputStyle={{ fontSize: 28, fontWeight: '800', color: colors.mainText }}
+                containerStyle={styles.amountContainer}
+              />
+            </View>
+
+            {/* Quick Presets */}
+            <View style={styles.presetsRow}>
+              {AMOUNT_PRESETS.map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => handleAddPreset(p)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.presetPill,
+                    {
+                      backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                      borderColor: isDark ? colors.border : colors.borderLight,
+                    },
+                  ]}
+                >
+                  <Text variant="xs" weight="bold" style={{ color: colors.primary, fontSize: 11 }}>
+                    +{currencySymbol}{p >= 1000 ? `${p / 1000}k` : p}
+                  </Text>
+                </TouchableOpacity>
               ))}
-            </Card>
-          </View>
-        ) : null}
+            </View>
 
-        <Button
-          title="Save Budget"
-          variant="primary"
-          size="lg"
-          loading={loading}
-          onPress={handleSave}
-          leftIcon={<Check size={20} color={colors.onPrimary} />}
-          buttonStyle={{ marginTop: Spacing.xl }}
-        />
+            {/* Allocation Visualizer Strip */}
+            {totalLimitNum > 0 ? (
+              <View style={styles.allocationVisualizer}>
+                <View
+                  style={[
+                    styles.allocTrack,
+                    { backgroundColor: isDark ? colors.elevatedSurface : colors.borderLight },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.allocFill,
+                      {
+                        width: `${allocatedPct}%`,
+                        backgroundColor: allocatedPct > 100 ? colors.error : colors.primary,
+                      },
+                    ]}
+                  />
+                </View>
+
+                <View style={styles.allocStatsRow}>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                    Allocated: <Text variant="xs" weight="bold" style={{ color: colors.mainText }}>{formatCurrency(totalAllocatedNum, activeCurrency)}</Text> ({allocatedPct}%)
+                  </Text>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                    Unallocated: <Text variant="xs" weight="bold" style={{ color: colors.positive }}>{formatCurrency(unallocatedAmount, activeCurrency)}</Text>
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+
+          {/* 3. Category-Specific Limits */}
+          {categories.length > 0 ? (
+            <View style={styles.sectionWrapper}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Sparkles size={14} color={colors.primary} />
+                  <Text variant="xs" weight="bold" color="secondary" style={styles.sectionLabel}>
+                    CATEGORY BUDGET CAPS (OPTIONAL)
+                  </Text>
+                </View>
+                <Text variant="xs" color="tertiary" style={{ fontSize: 11 }}>
+                  {categories.length} categories
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.categoryCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: isDark ? colors.border : colors.borderLight,
+                  },
+                  !isDark ? Shadows.sm : undefined,
+                ]}
+              >
+                {categories.map((c, idx) => {
+                  const cfg = getCategoryIconConfig(c.name, isDark);
+                  const IconComp = cfg.Icon;
+                  const catAllocNum = parseCurrencyInput(categoryAllocations[c.id] || '') || 0;
+                  const catPct = totalLimitNum > 0 ? Math.round((catAllocNum / totalLimitNum) * 100) : 0;
+
+                  return (
+                    <View key={c.id}>
+                      <View style={styles.catRow}>
+                        <View style={[styles.catIconBox, { backgroundColor: cfg.bg }]}>
+                          <IconComp size={18} color={cfg.color} strokeWidth={2.2} />
+                        </View>
+
+                        <View style={styles.catNameGroup}>
+                          <Text variant="sm" weight="bold" numberOfLines={1} style={{ color: colors.mainText }}>
+                            {c.name}
+                          </Text>
+                          {catAllocNum > 0 ? (
+                            <Text variant="xs" color="secondary" style={{ fontSize: 10.5, marginTop: 1 }}>
+                              {catPct}% of total limit
+                            </Text>
+                          ) : (
+                            <Text variant="xs" color="tertiary" style={{ fontSize: 10.5, marginTop: 1 }}>
+                              No limit set
+                            </Text>
+                          )}
+                        </View>
+
+                        <View style={styles.catInputWrapper}>
+                          <Input
+                            placeholder="0.00"
+                            keyboardType="decimal-pad"
+                            prefix={currencySymbol}
+                            value={categoryAllocations[c.id] || ''}
+                            onChangeText={(val) => handleAllocationChange(c.id, val)}
+                            containerStyle={{ marginBottom: 0, width: 130 }}
+                            inputStyle={{ fontSize: 13, paddingVertical: 5, fontWeight: '700' }}
+                          />
+                        </View>
+                      </View>
+
+                      {idx < categories.length - 1 && (
+                        <View
+                          style={[
+                            styles.divider,
+                            { backgroundColor: isDark ? colors.border : colors.borderLight },
+                          ]}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {/* 4. Save Button */}
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={loading}
+            activeOpacity={0.8}
+            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+          >
+            <Check size={18} color={colors.onPrimary} strokeWidth={2.5} />
+            <Text variant="base" weight="bold" style={{ color: colors.onPrimary, marginLeft: 8 }}>
+              {loading ? 'Saving Budget...' : isEditing ? 'Update Budget' : 'Save Budget'}
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       )}
     </KeyboardAvoidingView>
@@ -273,58 +446,109 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
   },
-  amountCard: {
+  heroAmountCard: {
     padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
     marginBottom: Spacing.lg,
-    alignItems: 'center',
   },
-  amountInputRow: {
+  heroOverlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 6,
+    marginBottom: Spacing.xs,
+  },
+  heroOverline: {
+    letterSpacing: 0.6,
+  },
+  amountInputRow: {
+    marginTop: 2,
   },
   amountContainer: {
     marginBottom: 0,
-    width: 220,
   },
-  bigAmountInput: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
+  presetsRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
   },
-  categorySection: {
+  presetPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  allocationVisualizer: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(150, 150, 150, 0.15)',
+  },
+  allocTrack: {
+    height: 6,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  allocFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
+  },
+  allocStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionWrapper: {
     marginBottom: Spacing.lg,
   },
-  sectionLabel: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
-    marginLeft: 4,
+    paddingHorizontal: 2,
+  },
+  sectionLabel: {
     letterSpacing: 0.5,
   },
-  catCard: {
-    padding: Spacing.md,
-    gap: Spacing.sm,
+  categoryCard: {
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   catRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+  },
+  catIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
   },
   catNameGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 1,
-  },
-  catColorCircle: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  catName: {
-    flex: 1,
+    marginRight: Spacing.sm,
   },
   catInputWrapper: {
-    width: 140,
+    alignItems: 'flex-end',
+  },
+  divider: {
+    height: 1,
+    marginLeft: 66,
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md + 2,
+    borderRadius: BorderRadius.xl,
+    marginTop: Spacing.sm,
   },
 });
-

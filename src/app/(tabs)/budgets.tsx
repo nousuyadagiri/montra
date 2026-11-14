@@ -11,7 +11,17 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PieChart, Plus, Target, Pencil, Trash2 } from 'lucide-react-native';
+import {
+  PieChart,
+  Plus,
+  Target,
+  Pencil,
+  Trash2,
+  TrendingUp,
+  CheckCircle2,
+  ArrowUpRight,
+  Wallet,
+} from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
@@ -130,6 +140,21 @@ export default function BudgetsScreen() {
   const overallProgress = totalBudgetLimit > 0 ? totalBudgetSpent / totalBudgetLimit : 0;
   const overallPercentage = Math.round(overallProgress * 100);
 
+  // Goals calculations
+  const totalGoalsTarget = useMemo(
+    () => activeGoals.reduce((sum, g) => sum + Number(g.target_amount || 0), 0),
+    [activeGoals]
+  );
+  const totalGoalsSaved = useMemo(
+    () => activeGoals.reduce((sum, g) => sum + Number(g.current_amount || 0), 0),
+    [activeGoals]
+  );
+  const goalsProgress = totalGoalsTarget > 0 ? totalGoalsSaved / totalGoalsTarget : 0;
+  const goalsPercentage = Math.min(100, Math.round(goalsProgress * 100));
+  const completedGoalsCount = activeGoals.filter(
+    (g) => g.is_completed || Number(g.current_amount) >= Number(g.target_amount)
+  ).length;
+
   const handleDeleteBudget = (budgetId: string, budgetName: string) => {
     Alert.alert(
       'Delete Budget',
@@ -190,8 +215,9 @@ export default function BudgetsScreen() {
 
           <View style={styles.headerButtons}>
             <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+              style={[styles.addBtn, { backgroundColor: colors.primary }, !isDark ? Shadows.sm : undefined]}
               onPress={() => router.push(activeTab === 'budgets' ? '/budgets/add' : '/goals/add')}
+              activeOpacity={0.8}
               accessibilityLabel={activeTab === 'budgets' ? 'Add Budget' : 'Add Goal'}
             >
               <Plus size={15} color={colors.onPrimary} strokeWidth={2.5} />
@@ -212,11 +238,14 @@ export default function BudgetsScreen() {
           <TouchableOpacity
             style={[
               styles.tabBtn,
-              activeTab === 'budgets' && {
-                backgroundColor: colors.surface,
-                borderColor: colors.borderLight,
-                borderWidth: StyleSheet.hairlineWidth,
-              },
+              activeTab === 'budgets' && [
+                styles.tabBtnActive,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                },
+                !isDark ? Shadows.sm : undefined,
+              ],
             ]}
             onPress={() => setActiveTab('budgets')}
             activeOpacity={0.7}
@@ -239,11 +268,14 @@ export default function BudgetsScreen() {
           <TouchableOpacity
             style={[
               styles.tabBtn,
-              activeTab === 'goals' && {
-                backgroundColor: colors.surface,
-                borderColor: colors.borderLight,
-                borderWidth: StyleSheet.hairlineWidth,
-              },
+              activeTab === 'goals' && [
+                styles.tabBtnActive,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                },
+                !isDark ? Shadows.sm : undefined,
+              ],
             ]}
             onPress={() => setActiveTab('goals')}
             activeOpacity={0.7}
@@ -282,10 +314,13 @@ export default function BudgetsScreen() {
             >
               <View style={styles.overviewTop}>
                 <View>
-                  <Text variant="xs" color="secondary" weight="bold" style={{ letterSpacing: 0.6 }}>
-                    TOTAL MONTHLY BUDGET
-                  </Text>
-                  <Text variant="2xl" weight="extrabold" style={{ marginTop: 2, letterSpacing: -0.5 }}>
+                  <View style={styles.overviewLabelRow}>
+                    <TrendingUp size={12} color={colors.secondaryText} />
+                    <Text variant="xs" color="secondary" weight="bold" style={styles.overviewLabel}>
+                      TOTAL MONTHLY BUDGET
+                    </Text>
+                  </View>
+                  <Text variant="2xl" weight="extrabold" style={styles.overviewAmount}>
                     {formatCurrency(totalBudgetLimit, currency)}
                   </Text>
                 </View>
@@ -352,25 +387,44 @@ export default function BudgetsScreen() {
                 />
               </View>
 
-              <View style={styles.overviewBottom}>
-                <Text variant="xs" color="secondary">
-                  Spent:{' '}
-                  <Text variant="xs" weight="bold" color="main">
+              {/* Stats Tiles */}
+              <View style={styles.statTilesRow}>
+                <View
+                  style={[
+                    styles.statTile,
+                    { backgroundColor: isDark ? colors.elevatedSurface : colors.background, borderColor: colors.borderLight },
+                  ]}
+                >
+                  <View style={styles.statTileHeader}>
+                    <ArrowUpRight size={12} color={colors.secondaryText} />
+                    <Text variant="xs" color="secondary" weight="medium">Spent</Text>
+                  </View>
+                  <Text variant="sm" weight="bold" color="main" style={{ marginTop: 2 }}>
                     {formatCurrency(totalBudgetSpent, currency)}
                   </Text>
-                </Text>
-                <Text variant="xs" color="secondary">
-                  Remaining:{' '}
+                </View>
+
+                <View
+                  style={[
+                    styles.statTile,
+                    { backgroundColor: isDark ? colors.elevatedSurface : colors.background, borderColor: colors.borderLight },
+                  ]}
+                >
+                  <View style={styles.statTileHeader}>
+                    <Wallet size={12} color={remainingBudget >= 0 ? colors.positive : colors.negative} />
+                    <Text variant="xs" color="secondary" weight="medium">Remaining</Text>
+                  </View>
                   <Text
-                    variant="xs"
+                    variant="sm"
                     weight="bold"
                     style={{
+                      marginTop: 2,
                       color: remainingBudget >= 0 ? colors.positive : colors.negative,
                     }}
                   >
                     {formatCurrency(remainingBudget, currency)}
                   </Text>
-                </Text>
+                </View>
               </View>
             </View>
 
@@ -416,21 +470,57 @@ export default function BudgetsScreen() {
                       style={[
                         styles.budgetGroupCard,
                         { backgroundColor: colors.surface, borderColor: colors.borderLight },
+                        !isDark ? Shadows.sm : undefined,
                       ]}
                     >
                       <View style={styles.budgetGroupHeader}>
                         <View style={{ flex: 1, paddingRight: Spacing.sm }}>
-                          <Text variant="sm" weight="bold" numberOfLines={1}>
+                          <Text variant="base" weight="bold" numberOfLines={1}>
                             {b.name}
                           </Text>
-                          <Text variant="xs" color="secondary" style={{ fontSize: 11, marginTop: 1 }}>
-                            {formatCurrency(b.totalSpent, currency)} of {formatCurrency(b.total_limit, currency)} ({pct}%)
+                          <Text variant="xs" color="secondary" style={{ fontSize: 11, marginTop: 2 }}>
+                            {formatCurrency(b.totalSpent, currency)} of {formatCurrency(b.total_limit, currency)}
                           </Text>
                         </View>
                         <View style={styles.budgetGroupActions}>
+                          <View
+                            style={[
+                              styles.groupPctBadge,
+                              {
+                                backgroundColor:
+                                  pct >= 100
+                                    ? colors.expenseMuted
+                                    : pct >= 80
+                                    ? colors.warningMuted
+                                    : colors.primaryMuted,
+                              },
+                            ]}
+                          >
+                            <Text
+                              variant="xs"
+                              weight="bold"
+                              style={{
+                                color:
+                                  pct >= 100
+                                    ? colors.negative
+                                    : pct >= 80
+                                    ? colors.warning
+                                    : colors.primary,
+                                fontSize: 11,
+                              }}
+                            >
+                              {pct}%
+                            </Text>
+                          </View>
                           <TouchableOpacity
                             onPress={() => router.push({ pathname: '/budgets/add', params: { editId: b.id } })}
-                            style={[styles.miniIconBtn, { backgroundColor: colors.primaryMuted }]}
+                            style={[
+                              styles.miniIconBtn,
+                              {
+                                backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                                borderColor: colors.borderLight,
+                              },
+                            ]}
                             accessibilityLabel={`Edit ${b.name}`}
                           >
                             <Pencil size={13} color={colors.primary} />
@@ -475,13 +565,133 @@ export default function BudgetsScreen() {
               TAB 2: SAVINGS GOALS
           ========================================= */
           <>
+            {/* Savings Goals Overview Card */}
+            <View
+              style={[
+                styles.overviewCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+                !isDark ? Shadows.sm : undefined,
+              ]}
+            >
+              <View style={styles.overviewTop}>
+                <View>
+                  <View style={styles.overviewLabelRow}>
+                    <Target size={12} color={colors.secondaryText} />
+                    <Text variant="xs" color="secondary" weight="bold" style={styles.overviewLabel}>
+                      TOTAL SAVED IN GOALS
+                    </Text>
+                  </View>
+                  <Text variant="2xl" weight="extrabold" style={styles.overviewAmount}>
+                    {formatCurrency(totalGoalsSaved, currency)}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.percentageBadge,
+                    {
+                      backgroundColor:
+                        totalGoalsTarget === 0
+                          ? colors.elevatedSurface
+                          : goalsPercentage >= 100
+                          ? colors.successMuted
+                          : colors.primaryMuted,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="xs"
+                    weight="extrabold"
+                    style={{
+                      color:
+                        totalGoalsTarget === 0
+                          ? colors.secondaryText
+                          : goalsPercentage >= 100
+                          ? colors.positive
+                          : colors.primary,
+                      fontSize: 11,
+                    }}
+                  >
+                    {totalGoalsTarget === 0 ? 'No goals' : `${goalsPercentage}% reached`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Progress bar */}
+              <View
+                style={[
+                  styles.track,
+                  {
+                    backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.fill,
+                    {
+                      width: `${Math.min(goalsProgress * 100, 100)}%`,
+                      backgroundColor: goalsPercentage >= 100 ? colors.positive : colors.primary,
+                    },
+                  ]}
+                />
+              </View>
+
+              {/* Stats Tiles */}
+              <View style={styles.statTilesRow}>
+                <View
+                  style={[
+                    styles.statTile,
+                    { backgroundColor: isDark ? colors.elevatedSurface : colors.background, borderColor: colors.borderLight },
+                  ]}
+                >
+                  <View style={styles.statTileHeader}>
+                    <Target size={12} color={colors.secondaryText} />
+                    <Text variant="xs" color="secondary" weight="medium">Total Target</Text>
+                  </View>
+                  <Text variant="sm" weight="bold" color="main" style={{ marginTop: 2 }}>
+                    {formatCurrency(totalGoalsTarget, currency)}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.statTile,
+                    { backgroundColor: isDark ? colors.elevatedSurface : colors.background, borderColor: colors.borderLight },
+                  ]}
+                >
+                  <View style={styles.statTileHeader}>
+                    <CheckCircle2 size={12} color={colors.positive} />
+                    <Text variant="xs" color="secondary" weight="medium">Milestones</Text>
+                  </View>
+                  <Text
+                    variant="sm"
+                    weight="bold"
+                    style={{
+                      marginTop: 2,
+                      color: colors.positive,
+                    }}
+                  >
+                    {completedGoalsCount} of {activeGoals.length} Done
+                  </Text>
+                </View>
+              </View>
+            </View>
+
             <View style={styles.sectionTitleRow}>
               <Text variant="sm" weight="bold">
                 Active Goals
               </Text>
-              <TouchableOpacity onPress={() => router.push('/goals/add')}>
-                <Text variant="xs" color="primary" weight="bold">
-                  + New Goal
+              <TouchableOpacity
+                onPress={() => router.push('/goals/add')}
+                style={styles.newGoalInlineBtn}
+              >
+                <Plus size={13} color={colors.primary} strokeWidth={2.5} />
+                <Text variant="xs" color="primary" weight="bold" style={{ marginLeft: 3 }}>
+                  New Goal
                 </Text>
               </TouchableOpacity>
             </View>
@@ -535,10 +745,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   screenTitle: {
-    fontSize: 20,
+    fontSize: 22,
     letterSpacing: -0.4,
   },
   titleWithBadge: {
@@ -553,16 +763,16 @@ const styles = StyleSheet.create({
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: BorderRadius.full,
   },
   tabSwitcher: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
     padding: 3,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   tabBtn: {
     flex: 1,
@@ -570,14 +780,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.lg,
+  },
+  tabBtnActive: {
+    borderWidth: 1,
   },
   overviewCard: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
   overviewTop: {
     flexDirection: 'row',
@@ -585,8 +798,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: Spacing.md,
   },
+  overviewLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  overviewLabel: {
+    letterSpacing: 0.6,
+    fontSize: 11,
+  },
+  overviewAmount: {
+    marginTop: 2,
+    letterSpacing: -0.5,
+  },
   percentageBadge: {
-    alignItems: 'flex-end',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   track: {
     height: 8,
@@ -598,10 +829,21 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: BorderRadius.full,
   },
-  overviewBottom: {
+  statTilesRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  statTile: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  statTileHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
   sectionTitleRow: {
     flexDirection: 'row',
@@ -610,9 +852,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.xs,
   },
+  newGoalInlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
   budgetGroupCard: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
     padding: Spacing.md,
     marginBottom: Spacing.xs,
   },
@@ -627,15 +875,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  groupPctBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    marginRight: 2,
+  },
   miniIconBtn: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: BorderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
   miniTrack: {
-    height: 6,
+    height: 5,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
