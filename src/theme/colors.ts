@@ -35,12 +35,7 @@ export type ThemeName =
   | 'slate-blue'
   | 'aurora-teal'
   | 'claude-terracotta'
-  | 'gemini-celestial'
-  | 'chatgpt-emerald'
-  | 'linear-violet'
-  | 'solaris-amber'
-  | 'monolith-onyx'
-  | 'nordic-frost';
+  | 'gemini-celestial';
 
 export interface ThemeOption {
   id: ThemeName;
@@ -97,51 +92,6 @@ export const THEME_OPTIONS: ThemeOption[] = [
     previewBgDark: '#0B0F19',
     previewColor: '#1A73E8',
     accentColor: '#8B5CF6',
-  },
-  {
-    id: 'chatgpt-emerald',
-    name: 'OpenAI Emerald',
-    description: 'OpenAI mint & titanium slate',
-    previewBgLight: '#F7F9F8',
-    previewBgDark: '#0D1117',
-    previewColor: '#10A37F',
-    accentColor: '#10B981',
-  },
-  {
-    id: 'linear-violet',
-    name: 'Linear Violet',
-    description: 'Linear obsidian & electric violet',
-    previewBgLight: '#F8F8FC',
-    previewBgDark: '#0F0F14',
-    previewColor: '#5E6AD2',
-    accentColor: '#717DF0',
-  },
-  {
-    id: 'solaris-amber',
-    name: 'Solaris Amber',
-    description: 'Radiant amber & champagne bronze',
-    previewBgLight: '#FFFDF7',
-    previewBgDark: '#120E08',
-    previewColor: '#D97706',
-    accentColor: '#FBBF24',
-  },
-  {
-    id: 'monolith-onyx',
-    name: 'Monolith Onyx',
-    description: 'Architectural onyx & pure platinum',
-    previewBgLight: '#FAFAFA',
-    previewBgDark: '#09090B',
-    previewColor: '#111827',
-    accentColor: '#FAFAFA',
-  },
-  {
-    id: 'nordic-frost',
-    name: 'Nordic Frost',
-    description: 'Polar slate & arctic spruce',
-    previewBgLight: '#F3F6F8',
-    previewBgDark: '#090F13',
-    previewColor: '#1E4E63',
-    accentColor: '#64AEC9',
   },
 ];
 
@@ -455,141 +405,6 @@ const GeminiCelestialPair = buildThemePair({
   darkTextTertiary: '#64748B',
 });
 
-const ChatGPTEmeraldPair = buildThemePair({
-  lightBg: '#F7F9F8',
-  lightElevated: '#EDF2F0',
-  lightPrimary: '#10A37F',
-  lightPrimaryMuted: 'rgba(16, 163, 127, 0.11)',
-  lightAccent: '#059669',
-  lightSoftAccent: '#D1FAE5',
-  lightBorder: '#D6E2DE',
-  lightBorderLight: '#E8F0ED',
-  lightText: '#0D1714',
-  lightTextSecondary: '#475852',
-  lightTextTertiary: '#8FA39C',
-  darkBg: '#0D1117',
-  darkSurface: '#161B22',
-  darkElevated: '#21262D',
-  darkPrimary: '#10B981',
-  darkPrimaryMuted: 'rgba(16, 185, 129, 0.18)',
-  darkOnPrimary: '#05130E',
-  darkAccent: '#34D399',
-  darkSoftAccent: '#064E3B',
-  darkBorder: '#30363D',
-  darkBorderLight: '#21262D',
-  darkText: '#F0F6FC',
-  darkTextSecondary: '#8B949E',
-  darkTextTertiary: '#6E7681',
-});
-
-const LinearVioletPair = buildThemePair({
-  lightBg: '#F8F8FC',
-  lightElevated: '#EEEEF7',
-  lightPrimary: '#5E6AD2',
-  lightPrimaryMuted: 'rgba(94, 106, 210, 0.12)',
-  lightAccent: '#7C3AED',
-  lightSoftAccent: '#EDE9FE',
-  lightBorder: '#DCDCF0',
-  lightBorderLight: '#EDEDFA',
-  lightText: '#121224',
-  lightTextSecondary: '#50506E',
-  lightTextTertiary: '#9191B0',
-  darkBg: '#0F0F14',
-  darkSurface: '#171721',
-  darkElevated: '#212130',
-  darkPrimary: '#717DF0',
-  darkPrimaryMuted: 'rgba(113, 125, 240, 0.18)',
-  darkOnPrimary: '#09090F',
-  darkAccent: '#A78BFA',
-  darkSoftAccent: '#262248',
-  darkBorder: '#29293D',
-  darkBorderLight: '#1C1C2A',
-  darkText: '#F5F5FA',
-  darkTextSecondary: '#9494B3',
-  darkTextTertiary: '#626280',
-});
-
-const SolarisAmberPair = buildThemePair({
-  lightBg: '#FFFDF7',
-  lightElevated: '#FBF4E4',
-  lightPrimary: '#D97706',
-  lightPrimaryMuted: 'rgba(217, 119, 6, 0.11)',
-  lightAccent: '#F59E0B',
-  lightSoftAccent: '#FEF3C7',
-  lightBorder: '#EEDCBE',
-  lightBorderLight: '#F7EDDC',
-  lightText: '#261C08',
-  lightTextSecondary: '#6B542B',
-  lightTextTertiary: '#AA9063',
-  darkBg: '#120E08',
-  darkSurface: '#1C170E',
-  darkElevated: '#272014',
-  darkPrimary: '#FBBF24',
-  darkPrimaryMuted: 'rgba(251, 191, 36, 0.18)',
-  darkOnPrimary: '#140E04',
-  darkAccent: '#FDE68A',
-  darkSoftAccent: '#33230A',
-  darkBorder: '#382B14',
-  darkBorderLight: '#261C0D',
-  darkText: '#FEF9EE',
-  darkTextSecondary: '#B8A179',
-  darkTextTertiary: '#7C6949',
-});
-
-const MonolithOnyxPair = buildThemePair({
-  lightBg: '#FAFAFA',
-  lightElevated: '#F0F0F0',
-  lightPrimary: '#111827',
-  lightPrimaryMuted: 'rgba(17, 24, 39, 0.08)',
-  lightAccent: '#374151',
-  lightSoftAccent: '#E5E7EB',
-  lightBorder: '#E5E7EB',
-  lightBorderLight: '#F3F4F6',
-  lightText: '#111827',
-  lightTextSecondary: '#4B5563',
-  lightTextTertiary: '#9CA3AF',
-  darkBg: '#09090B',
-  darkSurface: '#141417',
-  darkElevated: '#202024',
-  darkPrimary: '#FAFAFA',
-  darkPrimaryMuted: 'rgba(250, 250, 250, 0.15)',
-  darkOnPrimary: '#09090B',
-  darkAccent: '#D4D4D8',
-  darkSoftAccent: '#27272A',
-  darkBorder: '#27272A',
-  darkBorderLight: '#18181B',
-  darkText: '#FAFAFA',
-  darkTextSecondary: '#A1A1AA',
-  darkTextTertiary: '#71717A',
-});
-
-const NordicFrostPair = buildThemePair({
-  lightBg: '#F3F6F8',
-  lightElevated: '#E8EDF1',
-  lightPrimary: '#1E4E63',
-  lightPrimaryMuted: 'rgba(30, 78, 99, 0.11)',
-  lightAccent: '#3A7087',
-  lightSoftAccent: '#E3ECF0',
-  lightBorder: '#D7E0E6',
-  lightBorderLight: '#E8EEF2',
-  lightText: '#101B22',
-  lightTextSecondary: '#4A5D68',
-  lightTextTertiary: '#8799A5',
-  darkBg: '#090F13',
-  darkSurface: '#10181E',
-  darkElevated: '#17232B',
-  darkPrimary: '#64AEC9',
-  darkPrimaryMuted: 'rgba(100, 174, 201, 0.17)',
-  darkOnPrimary: '#081217',
-  darkAccent: '#86C7DE',
-  darkSoftAccent: '#172731',
-  darkBorder: '#1F313B',
-  darkBorderLight: '#16232B',
-  darkText: '#F2F6F8',
-  darkTextSecondary: '#8CA2AF',
-  darkTextTertiary: '#5C717E',
-});
-
 /* -------------------------------------------------------------
  * Dynamic Theme Resolver
  * ------------------------------------------------------------- */
@@ -605,11 +420,6 @@ export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }
   'aurora-teal': AuroraTealPair,
   'claude-terracotta': ClaudeTerracottaPair,
   'gemini-celestial': GeminiCelestialPair,
-  'chatgpt-emerald': ChatGPTEmeraldPair,
-  'linear-violet': LinearVioletPair,
-  'solaris-amber': SolarisAmberPair,
-  'monolith-onyx': MonolithOnyxPair,
-  'nordic-frost': NordicFrostPair,
 };
 
 export const getThemeColors = (themeName: ThemeName, isDark: boolean): ThemeColors => {

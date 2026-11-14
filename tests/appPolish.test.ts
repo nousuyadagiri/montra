@@ -3,18 +3,16 @@ import { getErrorMessage } from '../src/utils/errors';
 import { toast, useToastStore } from '../src/store/toastStore';
 
 describe('Theme palettes', () => {
-  it('provides curated minimalist themes including Electric Indigo, Oceanic Slate, and Aurora Teal with light and dark tokens', () => {
-    expect(THEME_OPTIONS).toHaveLength(10);
+  it('provides curated minimalist themes including Electric Indigo, Oceanic Slate, Aurora Teal, Claude Terracotta, and Gemini Celestial with light and dark tokens', () => {
+    expect(THEME_OPTIONS).toHaveLength(5);
     const names = THEME_OPTIONS.map((o) => o.name);
-    expect(names).toEqual(
-      expect.arrayContaining([
-        'Electric Indigo',
-        'Oceanic Slate',
-        'Aurora Teal',
-        'Claude Terracotta',
-        'Gemini Celestial',
-      ])
-    );
+    expect(names).toEqual([
+      'Electric Indigo',
+      'Oceanic Slate',
+      'Aurora Teal',
+      'Claude Terracotta',
+      'Gemini Celestial',
+    ]);
     expect(new Set(THEME_OPTIONS.map((o) => o.id)).size).toBe(THEME_OPTIONS.length);
 
     for (const option of THEME_OPTIONS) {
