@@ -184,8 +184,6 @@ export default function BudgetsScreen() {
 
   const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
   const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
-  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
-  const tabHeight = 62 + bottomInset;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -194,7 +192,7 @@ export default function BudgetsScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
-            paddingBottom: tabHeight + Spacing.xl,
+            paddingBottom: Spacing.xl,
           },
         ]}
         refreshControl={

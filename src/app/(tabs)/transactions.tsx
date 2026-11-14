@@ -235,8 +235,6 @@ export default function TransactionsScreen() {
 
   const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
   const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
-  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
-  const tabHeight = 62 + bottomInset;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -383,7 +381,7 @@ export default function TransactionsScreen() {
         keyExtractor={(group) => group.dateKey}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: tabHeight + Spacing.lg },
+          { paddingBottom: Spacing.xl },
         ]}
         refreshControl={
           <RefreshControl

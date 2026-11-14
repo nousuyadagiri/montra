@@ -239,10 +239,8 @@ export default function TabLayout() {
 
   // Ensure bottom navigation bar on Android (3-button or gesture bar) and iOS home indicator
   // have adequate padding so tab icons and labels are never overlapped.
-  const bottomInset = Platform.OS === 'android'
-    ? Math.max(insets.bottom, 16)
-    : Math.max(insets.bottom, 10);
-  const tabHeight = 62 + bottomInset;
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 4);
+  const tabHeight = 54 + bottomInset;
 
   return (
     <Tabs
@@ -256,8 +254,8 @@ export default function TabLayout() {
           borderTopColor: colors.borderLight,
           borderTopWidth: StyleSheet.hairlineWidth,
           height: tabHeight,
-          paddingTop: 6,
-          paddingBottom: bottomInset + 4,
+          paddingTop: 4,
+          paddingBottom: bottomInset,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },

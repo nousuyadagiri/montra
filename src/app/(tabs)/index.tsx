@@ -155,9 +155,6 @@ export default function HomeScreen() {
     statusBarHeight,
     Platform.OS === "android" ? 28 : 16,
   );
-  const bottomInset =
-    insets.bottom > 0 ? insets.bottom : Platform.OS === "android" ? 24 : 10;
-  const tabHeight = 62 + bottomInset;
 
   if (loading && !isDemo && !realMetrics) {
     return (
@@ -214,7 +211,7 @@ export default function HomeScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === "android" ? 14 : 10),
-            paddingBottom: tabHeight + Spacing.lg,
+            paddingBottom: Spacing.xl,
           },
         ]}
         refreshControl={
