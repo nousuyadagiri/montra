@@ -278,29 +278,51 @@ export default function ProfileScreen() {
           </View>
 
           {/* Compact 2-Col Financial Snapshot */}
-          <View style={[styles.snapshotStrip, { backgroundColor: colors.elevatedSurface }]}>
-            <TouchableOpacity style={styles.snapshotItem} onPress={openEditModal} activeOpacity={0.75}>
+          <View style={styles.snapshotGrid}>
+            <TouchableOpacity
+              style={[
+                styles.snapshotCard,
+                {
+                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+              ]}
+              onPress={openEditModal}
+              activeOpacity={0.75}
+            >
               <View style={styles.snapshotLabelRow}>
-                <Wallet size={12} color={colors.primary} />
-                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                <View style={[styles.microIconCircle, { backgroundColor: colors.primaryMuted }]}>
+                  <Wallet size={12} color={colors.primary} />
+                </View>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
                   Monthly Salary
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ marginTop: 3 }}>
+              <Text variant="sm" weight="extrabold" style={{ marginTop: 4, color: colors.mainText }}>
                 {formatCurrency(Number(activeProfile?.monthly_salary || 0), currency)}
               </Text>
             </TouchableOpacity>
 
-            <View style={[styles.snapshotDivider, { backgroundColor: colors.border }]} />
-
-            <TouchableOpacity style={styles.snapshotItem} onPress={openEditModal} activeOpacity={0.75}>
+            <TouchableOpacity
+              style={[
+                styles.snapshotCard,
+                {
+                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+              ]}
+              onPress={openEditModal}
+              activeOpacity={0.75}
+            >
               <View style={styles.snapshotLabelRow}>
-                <Calendar size={12} color={colors.secondary} />
-                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                <View style={[styles.microIconCircle, { backgroundColor: colors.secondaryMuted }]}>
+                  <Calendar size={12} color={colors.secondary} />
+                </View>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
                   Salary Credit Day
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ marginTop: 3 }}>
+              <Text variant="sm" weight="extrabold" style={{ marginTop: 4, color: colors.mainText }}>
                 Day {activeProfile?.salary_date || 1} of month
               </Text>
             </TouchableOpacity>
@@ -768,25 +790,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  snapshotStrip: {
+  snapshotGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BorderRadius.lg,
-    paddingVertical: 10,
-    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
   },
-  snapshotItem: {
+  snapshotCard: {
     flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
   },
   snapshotLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
-  snapshotDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 28,
-    marginHorizontal: Spacing.md,
+  microIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   demoAuthRow: {
     flexDirection: 'row',

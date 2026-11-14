@@ -9,18 +9,14 @@ import { transactionService } from '../../services/transactionService';
 import { Transaction, SupportedCurrency } from '../../types/database';
 import {
   Text,
-  Heading,
-  CurrencyText,
-  Card,
-  Badge,
-  Button,
   Header,
   LoadingState,
   ErrorState,
 } from '../../components/ui';
 import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
-import { Spacing } from '../../theme/tokens';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
+import { formatCurrency } from '../../utils/currency';
 import {
   Trash2,
   Pencil,
@@ -30,13 +26,196 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ArrowLeftRight,
+  Utensils,
+  Coffee,
+  Car,
+  Fuel,
+  Home,
+  Zap,
+  ShoppingBag,
+  Film,
+  Wallet,
+  Receipt,
+  FileText,
+  Building,
 } from 'lucide-react-native';
+
+const getTransactionVisuals = (transaction: Transaction, isDark: boolean) => {
+  const isIncome = transaction.type === 'income';
+  const isTransfer = transaction.type === 'transfer';
+  const title = (transaction.title || '').toLowerCase();
+  const catName = (transaction.category?.name || '').toLowerCase();
+  const searchStr = `${title} ${catName}`;
+
+  if (isIncome) {
+    return {
+      Icon: ArrowDownLeft,
+      color: '#10B981',
+      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+      typeLabel: 'Income Inflow',
+      pillBg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+      pillColor: '#10B981',
+    };
+  }
+
+  if (isTransfer) {
+    return {
+      Icon: ArrowLeftRight,
+      color: '#6366F1',
+      bg: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
+      typeLabel: 'Account Transfer',
+      pillBg: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
+      pillColor: '#6366F1',
+    };
+  }
+
+  // Expense categories
+  if (
+    searchStr.includes('milk') ||
+    searchStr.includes('coffee') ||
+    searchStr.includes('tea') ||
+    searchStr.includes('cafe') ||
+    searchStr.includes('chai')
+  ) {
+    return {
+      Icon: Coffee,
+      color: '#D97706',
+      bg: isDark ? 'rgba(217, 119, 6, 0.15)' : '#FFFBEB',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (
+    searchStr.includes('food') ||
+    searchStr.includes('dining') ||
+    searchStr.includes('grocer') ||
+    searchStr.includes('restaurant') ||
+    searchStr.includes('veg') ||
+    searchStr.includes('snack')
+  ) {
+    return {
+      Icon: Utensils,
+      color: '#10B981',
+      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (
+    searchStr.includes('fuel') ||
+    searchStr.includes('petrol') ||
+    searchStr.includes('diesel') ||
+    searchStr.includes('travel') ||
+    searchStr.includes('cab') ||
+    searchStr.includes('uber') ||
+    searchStr.includes('ola') ||
+    searchStr.includes('auto')
+  ) {
+    return {
+      Icon: Fuel,
+      color: '#0284C7',
+      bg: isDark ? 'rgba(2, 132, 199, 0.15)' : '#F0F9FF',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (searchStr.includes('transport') || searchStr.includes('car') || searchStr.includes('bike')) {
+    return {
+      Icon: Car,
+      color: '#0284C7',
+      bg: isDark ? 'rgba(2, 132, 199, 0.15)' : '#F0F9FF',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (
+    searchStr.includes('rent') ||
+    searchStr.includes('housing') ||
+    searchStr.includes('flat') ||
+    searchStr.includes('room')
+  ) {
+    return {
+      Icon: Home,
+      color: '#8B5CF6',
+      bg: isDark ? 'rgba(139, 92, 246, 0.15)' : '#F5F3FF',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (searchStr.includes('electric') || searchStr.includes('power') || searchStr.includes('gas') || searchStr.includes('bill')) {
+    return {
+      Icon: Zap,
+      color: '#F59E0B',
+      bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FFFBEB',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (searchStr.includes('shop') || searchStr.includes('cloth') || searchStr.includes('dress') || searchStr.includes('mall')) {
+    return {
+      Icon: ShoppingBag,
+      color: '#EC4899',
+      bg: isDark ? 'rgba(236, 72, 153, 0.15)' : '#FDF2F8',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  if (searchStr.includes('movie') || searchStr.includes('film') || searchStr.includes('party') || searchStr.includes('theatre')) {
+    return {
+      Icon: Film,
+      color: '#F43F5E',
+      bg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      typeLabel: 'Expense Outflow',
+      pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+      pillColor: '#E11D48',
+    };
+  }
+
+  return {
+    Icon: ArrowUpRight,
+    color: '#E11D48',
+    bg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+    typeLabel: 'Expense Outflow',
+    pillBg: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2',
+    pillColor: '#E11D48',
+  };
+};
+
+const formatFullDate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
 
 export default function TransactionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
 
@@ -171,6 +350,8 @@ export default function TransactionDetailScreen() {
   const isIncome = transaction.type === 'income';
   const isTransfer = transaction.type === 'transfer';
   const activeCurrency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const visuals = getTransactionVisuals(transaction, isDark);
+  const VisualIcon = visuals.Icon;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -178,20 +359,35 @@ export default function TransactionDetailScreen() {
         title="Transaction Details"
         showBack
         rightAction={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={styles.headerRightRow}>
             <TouchableOpacity
               onPress={() => router.push({ pathname: '/transactions/add', params: { editId: transaction.id } })}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={[
+                styles.headerActionBtn,
+                {
+                  backgroundColor: isDark ? colors.elevatedSurface : colors.surface,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+              ]}
               accessibilityLabel="Edit transaction"
             >
-              <Pencil size={19} color={colors.primary} />
+              <Pencil size={15} color={colors.primary} />
             </TouchableOpacity>
+
             <TouchableOpacity
               onPress={handleDelete}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={[
+                styles.headerActionBtn,
+                {
+                  backgroundColor: isDark ? colors.elevatedSurface : colors.surface,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+              ]}
               accessibilityLabel="Delete transaction"
             >
-              <Trash2 size={20} color={colors.error} />
+              <Trash2 size={15} color={colors.error} />
             </TouchableOpacity>
           </View>
         }
@@ -200,135 +396,226 @@ export default function TransactionDetailScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl },
+          { paddingBottom: insets.bottom + Spacing['3xl'] },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Card elevated style={styles.topCard}>
-          <View
-            style={[
-              styles.typeIconLarge,
-              {
-                backgroundColor: isIncome
-                  ? colors.successMuted
-                  : isTransfer
-                  ? colors.secondaryMuted
-                  : colors.errorMuted,
-              },
-            ]}
-          >
-            {isIncome ? (
-              <ArrowDownLeft size={32} color={colors.success} />
-            ) : isTransfer ? (
-              <ArrowLeftRight size={32} color={colors.secondary} />
-            ) : (
-              <ArrowUpRight size={32} color={colors.error} />
-            )}
+        {/* 1. Hero Transaction Receipt Card */}
+        <View
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.border : colors.borderLight,
+            },
+            !isDark ? Shadows.md : undefined,
+          ]}
+        >
+          {/* Category Icon Squircle */}
+          <View style={[styles.heroIconBox, { backgroundColor: visuals.bg }]}>
+            <VisualIcon size={28} color={visuals.color} strokeWidth={2.4} />
           </View>
 
-          <CurrencyText
-            amount={transaction.amount}
-            currency={activeCurrency}
+          {/* Amount Display */}
+          <Text
             variant="3xl"
             weight="extrabold"
             style={{
-              color: isIncome
-                ? colors.success
-                : isTransfer
-                ? colors.secondary
-                : colors.mainText,
+              color: isIncome ? colors.positive : isTransfer ? colors.primary : colors.mainText,
+              letterSpacing: -0.5,
               marginTop: Spacing.sm,
             }}
-          />
+          >
+            {isIncome ? '+' : isTransfer ? '' : '-'}
+            {formatCurrency(transaction.amount, activeCurrency)}
+          </Text>
 
-          <Heading level={2} style={styles.titleText}>
+          {/* Title */}
+          <Text variant="lg" weight="bold" style={styles.heroTitle} numberOfLines={2}>
             {transaction.title}
-          </Heading>
+          </Text>
 
-          <Badge
-            label={isIncome ? 'Income' : isTransfer ? 'Account Transfer' : 'Expense'}
-            variant={isIncome ? 'success' : isTransfer ? 'secondary' : 'error'}
-            style={{ marginTop: Spacing.xs }}
-          />
-        </Card>
+          {/* Status Badge */}
+          <View style={[styles.statusBadge, { backgroundColor: visuals.pillBg }]}>
+            <VisualIcon size={12} color={visuals.pillColor} strokeWidth={2.5} />
+            <Text
+              variant="xs"
+              weight="bold"
+              style={{ color: visuals.pillColor, marginLeft: 4, fontSize: 11 }}
+            >
+              {visuals.typeLabel}
+            </Text>
+          </View>
 
-        {/* Detailed Properties */}
-        <Card elevated style={styles.detailsCard}>
-          <View style={styles.row}>
-            <View style={styles.labelCol}>
-              <Calendar size={16} color={colors.secondaryText} />
-              <Text variant="sm" color="secondary" style={styles.propLabel}>
+          {/* Quick Edit Action Bar */}
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/transactions/add', params: { editId: transaction.id } })}
+              activeOpacity={0.8}
+              style={[
+                styles.quickActionPill,
+                {
+                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+              ]}
+            >
+              <Pencil size={13} color={colors.primary} />
+              <Text variant="xs" weight="bold" style={{ color: colors.primary, marginLeft: 5 }}>
+                Edit Transaction
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 2. Detailed Receipt Breakdown Card */}
+        <View style={styles.sectionHeaderRow}>
+          <Text variant="xs" weight="bold" color="secondary" style={styles.sectionTitle}>
+            TRANSACTION BREAKDOWN
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.detailsCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.border : colors.borderLight,
+            },
+            !isDark ? Shadows.sm : undefined,
+          ]}
+        >
+          {/* Date Row */}
+          <View style={styles.receiptRow}>
+            <View style={styles.rowLabelCol}>
+              <View style={[styles.rowIconCircle, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+                <Calendar size={14} color={colors.secondaryText} />
+              </View>
+              <Text variant="sm" color="secondary" style={styles.rowLabelText}>
                 Date
               </Text>
             </View>
-            <Text variant="sm" weight="semibold">
-              {transaction.date}
+            <Text variant="sm" weight="bold" style={{ color: colors.mainText }}>
+              {formatFullDate(transaction.date)}
             </Text>
           </View>
 
-          <View style={[styles.separator, { backgroundColor: colors.border }]} />
+          <View style={[styles.separator, { backgroundColor: isDark ? colors.border : colors.borderLight }]} />
 
-          <View style={styles.row}>
-            <View style={styles.labelCol}>
-              <Tag size={16} color={colors.secondaryText} />
-              <Text variant="sm" color="secondary" style={styles.propLabel}>
-                Category
-              </Text>
-            </View>
-            <Text variant="sm" weight="semibold">
-              {transaction.category?.name || 'Uncategorized'}
-            </Text>
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: colors.border }]} />
-
-          <View style={styles.row}>
-            <View style={styles.labelCol}>
-              <CreditCard size={16} color={colors.secondaryText} />
-              <Text variant="sm" color="secondary" style={styles.propLabel}>
-                Account
-              </Text>
-            </View>
-            <Text variant="sm" weight="semibold">
-              {transaction.account?.name || 'Default Account'}
-            </Text>
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: colors.border }]} />
-
-          <View style={styles.row}>
-            <View style={styles.labelCol}>
-              <CreditCard size={16} color={colors.secondaryText} />
-              <Text variant="sm" color="secondary" style={styles.propLabel}>
-                Payment Method
-              </Text>
-            </View>
-            <Text variant="sm" weight="semibold">
-              {transaction.payment_method}
-            </Text>
-          </View>
-
-          {transaction.notes ? (
+          {/* Category Row (if not transfer) */}
+          {!isTransfer ? (
             <>
-              <View style={[styles.separator, { backgroundColor: colors.border }]} />
-              <View style={styles.notesBlock}>
-                <Text variant="xs" color="secondary" weight="semibold" style={{ marginBottom: 4 }}>
-                  NOTES
+              <View style={styles.receiptRow}>
+                <View style={styles.rowLabelCol}>
+                  <View style={[styles.rowIconCircle, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+                    <Tag size={14} color={colors.secondaryText} />
+                  </View>
+                  <Text variant="sm" color="secondary" style={styles.rowLabelText}>
+                    Category
+                  </Text>
+                </View>
+                <View style={[styles.categoryBadge, { backgroundColor: visuals.bg }]}>
+                  <Text variant="xs" weight="bold" style={{ color: visuals.color }}>
+                    {transaction.category?.name || 'General Expense'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[styles.separator, { backgroundColor: isDark ? colors.border : colors.borderLight }]} />
+            </>
+          ) : null}
+
+          {/* Source Account Row */}
+          <View style={styles.receiptRow}>
+            <View style={styles.rowLabelCol}>
+              <View style={[styles.rowIconCircle, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+                <Building size={14} color={colors.secondaryText} />
+              </View>
+              <Text variant="sm" color="secondary" style={styles.rowLabelText}>
+                {isTransfer ? 'From Account' : isIncome ? 'Credited To' : 'Paid From'}
+              </Text>
+            </View>
+            <Text variant="sm" weight="bold" style={{ color: colors.mainText }}>
+              {transaction.account?.name || 'Primary Bank'}
+            </Text>
+          </View>
+
+          {/* Destination Account (if transfer) */}
+          {isTransfer && transaction.to_account_id ? (
+            <>
+              <View style={[styles.separator, { backgroundColor: isDark ? colors.border : colors.borderLight }]} />
+              <View style={styles.receiptRow}>
+                <View style={styles.rowLabelCol}>
+                  <View style={[styles.rowIconCircle, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+                    <Wallet size={14} color={colors.secondaryText} />
+                  </View>
+                  <Text variant="sm" color="secondary" style={styles.rowLabelText}>
+                    To Account
+                  </Text>
+                </View>
+                <Text variant="sm" weight="bold" style={{ color: colors.mainText }}>
+                  {transaction.account?.name || 'Destination Account'}
                 </Text>
-                <Text variant="sm">{transaction.notes}</Text>
               </View>
             </>
           ) : null}
-        </Card>
 
-        <Button
-          title="Delete Transaction"
-          variant="danger"
-          size="lg"
-          loading={deleting}
+          <View style={[styles.separator, { backgroundColor: isDark ? colors.border : colors.borderLight }]} />
+
+          {/* Payment Method */}
+          <View style={styles.receiptRow}>
+            <View style={styles.rowLabelCol}>
+              <View style={[styles.rowIconCircle, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+                <CreditCard size={14} color={colors.secondaryText} />
+              </View>
+              <Text variant="sm" color="secondary" style={styles.rowLabelText}>
+                Payment Mode
+              </Text>
+            </View>
+            <View style={[styles.paymentMethodPill, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+              <Text variant="xs" weight="bold" style={{ color: colors.mainText }}>
+                {transaction.payment_method || 'UPI'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Notes Section (if available) */}
+          {transaction.notes ? (
+            <>
+              <View style={[styles.separator, { backgroundColor: isDark ? colors.border : colors.borderLight }]} />
+              <View style={styles.notesContainer}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <FileText size={13} color={colors.secondaryText} />
+                  <Text variant="xs" color="secondary" weight="semibold" style={{ marginLeft: 5 }}>
+                    NOTES
+                  </Text>
+                </View>
+                <Text variant="sm" style={{ color: colors.mainText, lineHeight: 20 }}>
+                  {`"${transaction.notes}"`}
+                </Text>
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        {/* 3. Elegant Bottom Delete Button */}
+        <TouchableOpacity
           onPress={handleDelete}
-          buttonStyle={{ marginTop: Spacing.xl }}
-        />
+          disabled={deleting}
+          activeOpacity={0.75}
+          style={[
+            styles.deleteGhostBtn,
+            {
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.25)',
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : '#FEF2F2',
+            },
+          ]}
+        >
+          <Trash2 size={16} color={colors.error} />
+          <Text variant="sm" weight="bold" style={{ color: colors.error, marginLeft: 6 }}>
+            {deleting ? 'Deleting...' : 'Delete Transaction'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -338,48 +625,120 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
   },
-  topCard: {
+  heroCard: {
     alignItems: 'center',
     padding: Spacing.xl,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
     marginBottom: Spacing.lg,
   },
-  typeIconLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  heroIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  titleText: {
-    marginTop: Spacing.xs,
+  heroTitle: {
+    marginTop: 4,
     textAlign: 'center',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.sm,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    marginTop: Spacing.lg,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  quickActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  sectionHeaderRow: {
+    marginBottom: Spacing.xs,
+    paddingHorizontal: 2,
+  },
+  sectionTitle: {
+    letterSpacing: 0.5,
   },
   detailsCard: {
     padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    marginBottom: Spacing.xl,
   },
-  row: {
+  receiptRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
+    paddingVertical: 4,
   },
-  labelCol: {
+  rowLabelCol: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  propLabel: {
-    marginLeft: 8,
+  rowIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  rowLabelText: {
+    fontSize: 13,
+  },
+  categoryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  paymentMethodPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
   },
   separator: {
     height: 1,
-    marginVertical: Spacing.sm,
+    marginVertical: Spacing.md,
   },
-  notesBlock: {
-    paddingTop: Spacing.xs,
+  notesContainer: {
+    paddingTop: 2,
+  },
+  deleteGhostBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
   },
 });
-

@@ -19,16 +19,14 @@ import { transactionService } from '../../services/transactionService';
 import { Account, SupportedCurrency } from '../../types/database';
 import {
   Text,
-  CurrencyText,
   Input,
-  Button,
   Header,
   Card,
   Badge,
   LoadingState,
 } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
-import { parseCurrencyInput, CURRENCY_SYMBOLS } from '../../utils/currency';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
+import { parseCurrencyInput, CURRENCY_SYMBOLS, formatCurrency } from '../../utils/currency';
 import {
   CreditCard,
   Calendar,
@@ -36,11 +34,64 @@ import {
   Pencil,
   Trash2,
   Star,
+  Building,
+  Banknote,
+  Wallet,
+  PiggyBank,
+  ShieldCheck,
+  TrendingUp,
+  Home,
+  Utensils,
+  Car,
+  ShoppingBag,
+  Check,
+  Plus,
+  ArrowDownLeft,
 } from 'lucide-react-native';
+
+const QUICK_SALARY_PRESETS = [5000, 10000, 25000];
+const QUICK_PAYDAYS = [1, 5, 10, 25, 30];
+
+const getAllocationIcon = (category: string) => {
+  const cat = (category || '').toLowerCase();
+  if (cat.includes('rent') || cat.includes('housing')) {
+    return { Icon: Home, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)', group: 'Needs (50%)' };
+  }
+  if (cat.includes('food') || cat.includes('grocer')) {
+    return { Icon: Utensils, color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)', group: 'Needs (50%)' };
+  }
+  if (cat.includes('transport')) {
+    return { Icon: Car, color: '#6366F1', bg: 'rgba(99, 102, 241, 0.12)', group: 'Needs (50%)' };
+  }
+  if (cat.includes('saving')) {
+    return { Icon: PiggyBank, color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', group: 'Savings (30%)' };
+  }
+  if (cat.includes('invest')) {
+    return { Icon: TrendingUp, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', group: 'Savings (30%)' };
+  }
+  if (cat.includes('shop') || cat.includes('leisure')) {
+    return { Icon: ShoppingBag, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)', group: 'Wants (20%)' };
+  }
+  return { Icon: ShieldCheck, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', group: 'Savings (30%)' };
+};
+
+const getAccountIcon = (type: string) => {
+  switch (type) {
+    case 'cash':
+      return { Icon: Banknote, color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
+    case 'credit':
+      return { Icon: CreditCard, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)' };
+    case 'wallet':
+      return { Icon: Wallet, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' };
+    case 'bank':
+    default:
+      return { Icon: Building, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)' };
+  }
+};
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
@@ -78,6 +129,8 @@ export default function SettingsScreen() {
   const [newAccBalance, setNewAccBalance] = useState('');
   const [addingAccount, setAddingAccount] = useState(false);
 
+  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
+
   const loadAccounts = useCallback(async () => {
     if (isDemo) {
       setAccounts(demoAccounts);
@@ -106,6 +159,11 @@ export default function SettingsScreen() {
   useEffect(() => {
     loadAccounts();
   }, [loadAccounts]);
+
+  const handleAddSalaryPreset = (increment: number) => {
+    const current = parseCurrencyInput(salaryStr) || 0;
+    setSalaryStr(String(current + increment));
+  };
 
   const handleSaveSalary = async () => {
     const salary = parseCurrencyInput(salaryStr);
@@ -289,7 +347,10 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const currencySymbol = CURRENCY_SYMBOLS[activeCurrency] || '₹';
+  const currentSalaryNum = parseCurrencyInput(salaryStr) || 0;
+  const needsTotal = Math.round(currentSalaryNum * 0.5);
+  const wantsTotal = Math.round(currentSalaryNum * 0.2);
+  const savingsTotal = Math.round(currentSalaryNum * 0.3);
 
   return (
     <KeyboardAvoidingView
@@ -301,232 +362,470 @@ export default function SettingsScreen() {
         <LoadingState message="Loading accounts & salary settings..." />
       ) : (
         <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing['3xl'] },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Section 1: Monthly Salary Settings */}
-        <Text variant="sm" weight="semibold" color="secondary" style={styles.sectionHeader}>
-          MONTHLY SALARY SETUP
-        </Text>
-        <Card elevated style={styles.sectionCard}>
-          <Input
-            label="Monthly Take-Home Salary"
-            placeholder="50000"
-            prefix={currencySymbol}
-            keyboardType="decimal-pad"
-            value={salaryStr}
-            onChangeText={setSalaryStr}
-          />
-
-          <Input
-            label="Salary Credit Day of Month (1 - 31)"
-            placeholder="1"
-            keyboardType="number-pad"
-            value={salaryDateStr}
-            onChangeText={setSalaryDateStr}
-            leftIcon={<Calendar size={18} color={colors.secondaryText} />}
-          />
-
-          <View style={styles.salaryActionRow}>
-            <Button
-              title="Save Salary"
-              variant="primary"
-              size="md"
-              loading={savingSalary}
-              onPress={handleSaveSalary}
-              buttonStyle={{ flex: 1 }}
-            />
-            <Button
-              title="Record Credit Now"
-              variant="outline"
-              size="md"
-              onPress={handleRecordSalaryCredit}
-              buttonStyle={{ flex: 1 }}
-            />
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing['3xl'] },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Section 1: Executive Salary Setup Hero Card */}
+          <View style={styles.sectionHeaderRow}>
+            <Text variant="xs" weight="bold" color="secondary" style={styles.sectionTitle}>
+              MONTHLY SALARY SETUP
+            </Text>
           </View>
-        </Card>
 
-        {/* Section 2: Smart Suggested Salary Allocations */}
-        {allocations.length > 0 && parseCurrencyInput(salaryStr) > 0 ? (
-          <>
-            <View style={styles.allocHeaderRow}>
-              <View style={styles.allocTitleRow}>
-                <Sparkles size={16} color={colors.primary} />
-                <Text variant="sm" weight="semibold" color="secondary" style={{ marginLeft: 6 }}>
-                  SMART SALARY ALLOCATION (50/30/20 BLUEPRINT)
-                </Text>
-              </View>
-            </View>
-            <Card elevated style={styles.sectionCard}>
-              {allocations.map((a, idx) => (
-                <View key={idx} style={styles.allocRow}>
-                  <View style={styles.allocInfo}>
-                    <Text variant="sm" weight="medium">
-                      {a.category}
-                    </Text>
-                    <Text variant="xs" color="secondary">
-                      {a.percentage}% of salary
-                    </Text>
-                  </View>
-                  <CurrencyText
-                    amount={a.suggestedAmount}
-                    currency={activeCurrency}
-                    variant="sm"
-                    weight="bold"
-                    style={{ color: colors.primary }}
-                  />
-                </View>
-              ))}
-            </Card>
-          </>
-        ) : null}
-
-        {/* Section 3: Financial Accounts */}
-        <View style={styles.accountsHeader}>
-          <Text variant="sm" weight="semibold" color="secondary">
-            CONNECTED ACCOUNTS
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              if (showAddAccount) {
-                resetAccountForm();
-              } else {
-                setEditingAccountId(null);
-                setShowAddAccount(true);
-              }
-            }}
+          <View
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.md : undefined,
+            ]}
           >
-            <Text variant="xs" color="primary" weight="bold">
-              {showAddAccount ? 'Cancel' : '+ Add Account'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {/* Take-Home Salary Input with Presets */}
+            <View style={styles.salaryInputGroup}>
+              <Text variant="xs" weight="semibold" color="secondary" style={{ marginBottom: 6 }}>
+                Monthly Take-Home Salary
+              </Text>
+              <Input
+                placeholder="50000"
+                prefix={currencySymbol}
+                keyboardType="decimal-pad"
+                value={salaryStr}
+                onChangeText={setSalaryStr}
+                inputStyle={{ fontSize: 24, fontWeight: '700', color: colors.mainText }}
+                containerStyle={{ marginBottom: Spacing.xs }}
+              />
 
-        {showAddAccount ? (
-          <Card elevated style={styles.newAccountCard}>
-            <Text variant="base" weight="bold" style={{ marginBottom: Spacing.sm }}>
-              {editingAccountId ? 'Edit Account' : 'New Account'}
-            </Text>
-
-            <Input
-              label="Account Name"
-              placeholder="e.g. HDFC Salary A/c, Cash Wallet"
-              value={newAccName}
-              onChangeText={setNewAccName}
-            />
-
-            <Input
-              label={editingAccountId ? 'Current Balance' : 'Opening Balance'}
-              placeholder="0.00"
-              prefix={currencySymbol}
-              keyboardType="decimal-pad"
-              value={newAccBalance}
-              onChangeText={setNewAccBalance}
-            />
-
-            <View style={styles.accountTypeRow}>
-              {(['bank', 'cash', 'credit', 'wallet'] as const).map((t) => {
-                const isSelected = newAccType === t;
-                return (
+              {/* Quick Increment Chips */}
+              <View style={styles.presetsRow}>
+                {QUICK_SALARY_PRESETS.map((p) => (
                   <TouchableOpacity
-                    key={t}
-                    onPress={() => setNewAccType(t)}
+                    key={p}
+                    onPress={() => handleAddSalaryPreset(p)}
+                    activeOpacity={0.7}
                     style={[
-                      styles.typePill,
+                      styles.presetChip,
                       {
-                        backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                        borderColor: isDark ? colors.border : colors.borderLight,
                       },
                     ]}
                   >
-                    <Text
-                      variant="xs"
-                      weight={isSelected ? 'bold' : 'regular'}
-                      style={{
-                        color: isSelected ? colors.primary : colors.mainText,
-                        textTransform: 'capitalize',
-                      }}
-                    >
-                      {t}
+                    <Text variant="xs" weight="bold" style={{ color: colors.primary, fontSize: 11 }}>
+                      +{currencySymbol}{p >= 1000 ? `${p / 1000}k` : p}
                     </Text>
                   </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Payday Selection Strip */}
+            <View style={styles.paydaySection}>
+              <View style={styles.paydayLabelRow}>
+                <Calendar size={14} color={colors.primary} />
+                <Text variant="xs" weight="semibold" color="secondary" style={{ marginLeft: 6 }}>
+                  Salary Credit Day of Month (1 - 31)
+                </Text>
+              </View>
+
+              <View style={styles.paydayChipsRow}>
+                {QUICK_PAYDAYS.map((day) => {
+                  const isSelected = salaryDateStr === String(day);
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      onPress={() => setSalaryDateStr(String(day))}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.paydayChip,
+                        {
+                          backgroundColor: isSelected ? colors.primary : isDark ? colors.elevatedSurface : colors.background,
+                          borderColor: isSelected ? colors.primary : colors.borderLight,
+                        },
+                      ]}
+                    >
+                      <Text
+                        variant="xs"
+                        weight="bold"
+                        style={{ color: isSelected ? colors.onPrimary : colors.mainText }}
+                      >
+                        Day {day}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.salaryActionRow}>
+              <TouchableOpacity
+                onPress={handleSaveSalary}
+                disabled={savingSalary}
+                activeOpacity={0.8}
+                style={[styles.saveSalaryBtn, { backgroundColor: colors.primary }]}
+              >
+                <Check size={16} color={colors.onPrimary} strokeWidth={2.5} />
+                <Text variant="sm" weight="bold" style={{ color: colors.onPrimary, marginLeft: 6 }}>
+                  {savingSalary ? 'Saving...' : 'Save Salary'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleRecordSalaryCredit}
+                activeOpacity={0.8}
+                style={[
+                  styles.recordCreditBtn,
+                  {
+                    backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                    borderColor: isDark ? colors.border : colors.borderLight,
+                  },
+                ]}
+              >
+                <ArrowDownLeft size={16} color={colors.primary} strokeWidth={2.2} />
+                <Text variant="sm" weight="bold" style={{ color: colors.primary, marginLeft: 6 }}>
+                  Record Credit Now
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Section 2: Smart Salary Allocation (50/30/20 Blueprint) */}
+          {allocations.length > 0 && currentSalaryNum > 0 ? (
+            <View style={styles.sectionWrapper}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Sparkles size={15} color={colors.primary} />
+                  <Text variant="xs" weight="bold" color="secondary" style={styles.sectionTitle}>
+                    SMART ALLOCATION (50/30/20 BLUEPRINT)
+                  </Text>
+                </View>
+              </View>
+
+              {/* 50/30/20 Summary Pillar Card */}
+              <View
+                style={[
+                  styles.allocationCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: isDark ? colors.border : colors.borderLight,
+                  },
+                  !isDark ? Shadows.sm : undefined,
+                ]}
+              >
+                {/* Visual Ratio Progress Bar */}
+                <View style={styles.ratioBarContainer}>
+                  <View style={[styles.ratioBarSegment, { flex: 5, backgroundColor: '#3B82F6' }]} />
+                  <View style={[styles.ratioBarSegment, { flex: 3, backgroundColor: '#10B981' }]} />
+                  <View style={[styles.ratioBarSegment, { flex: 2, backgroundColor: '#8B5CF6' }]} />
+                </View>
+
+                {/* Ratio Pillar Badges */}
+                <View style={styles.ratioPillarsRow}>
+                  <View style={styles.ratioPillarItem}>
+                    <View style={[styles.ratioDot, { backgroundColor: '#3B82F6' }]} />
+                    <View>
+                      <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText }}>
+                        Needs (50%)
+                      </Text>
+                      <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 1 }}>
+                        {formatCurrency(needsTotal, activeCurrency)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.ratioPillarItem}>
+                    <View style={[styles.ratioDot, { backgroundColor: '#10B981' }]} />
+                    <View>
+                      <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText }}>
+                        Savings (30%)
+                      </Text>
+                      <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 1 }}>
+                        {formatCurrency(savingsTotal, activeCurrency)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.ratioPillarItem}>
+                    <View style={[styles.ratioDot, { backgroundColor: '#8B5CF6' }]} />
+                    <View>
+                      <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText }}>
+                        Wants (20%)
+                      </Text>
+                      <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 1 }}>
+                        {formatCurrency(wantsTotal, activeCurrency)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.divider,
+                    { backgroundColor: isDark ? colors.border : colors.borderLight, marginVertical: Spacing.md },
+                  ]}
+                />
+
+                {/* Category Allocations List */}
+                <View style={styles.allocationsList}>
+                  {allocations.map((a, idx) => {
+                    const cfg = getAllocationIcon(a.category);
+                    const IconComp = cfg.Icon;
+                    return (
+                      <View key={idx} style={styles.allocRow}>
+                        <View style={[styles.allocIconBox, { backgroundColor: cfg.bg }]}>
+                          <IconComp size={16} color={cfg.color} strokeWidth={2.2} />
+                        </View>
+
+                        <View style={styles.allocDetailsCol}>
+                          <View style={styles.allocTextRow}>
+                            <Text variant="sm" weight="bold" numberOfLines={1}>
+                              {a.category}
+                            </Text>
+                            <Text variant="sm" weight="extrabold" style={{ color: colors.mainText }}>
+                              {formatCurrency(a.suggestedAmount, activeCurrency)}
+                            </Text>
+                          </View>
+
+                          {/* Progress bar + percentage */}
+                          <View style={styles.allocProgressRow}>
+                            <View
+                              style={[
+                                styles.allocProgressBarTrack,
+                                { backgroundColor: isDark ? colors.elevatedSurface : colors.borderLight },
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.allocProgressBarFill,
+                                  { width: `${Math.min(100, a.percentage * 3.5)}%`, backgroundColor: cfg.color },
+                                ]}
+                              />
+                            </View>
+                            <Text variant="xs" color="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                              {a.percentage}%
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Section 3: Financial Connected Accounts */}
+          <View style={styles.sectionWrapper}>
+            <View style={styles.sectionHeaderRow}>
+              <Text variant="xs" weight="bold" color="secondary" style={styles.sectionTitle}>
+                CONNECTED ACCOUNTS ({accounts.length})
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (showAddAccount) {
+                    resetAccountForm();
+                  } else {
+                    setEditingAccountId(null);
+                    setShowAddAccount(true);
+                  }
+                }}
+                style={[
+                  styles.addAccountPillBtn,
+                  { backgroundColor: showAddAccount ? colors.expenseMuted : colors.primaryMuted },
+                ]}
+              >
+                <Plus size={13} color={showAddAccount ? colors.negative : colors.primary} />
+                <Text
+                  variant="xs"
+                  weight="bold"
+                  style={{ color: showAddAccount ? colors.negative : colors.primary, marginLeft: 4 }}
+                >
+                  {showAddAccount ? 'Cancel' : 'Add Account'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Inline Add / Edit Account Form */}
+            {showAddAccount ? (
+              <Card elevated style={styles.newAccountCard}>
+                <Text variant="sm" weight="bold" style={{ marginBottom: Spacing.sm }}>
+                  {editingAccountId ? 'Edit Account' : 'Connect New Account'}
+                </Text>
+
+                <Input
+                  label="Account Name"
+                  placeholder="e.g. HDFC Salary A/c, Cash Wallet"
+                  value={newAccName}
+                  onChangeText={setNewAccName}
+                />
+
+                <Input
+                  label={editingAccountId ? 'Current Balance' : 'Opening Balance'}
+                  placeholder="0.00"
+                  prefix={currencySymbol}
+                  keyboardType="decimal-pad"
+                  value={newAccBalance}
+                  onChangeText={setNewAccBalance}
+                />
+
+                <Text variant="xs" weight="semibold" color="secondary" style={{ marginBottom: 6 }}>
+                  ACCOUNT TYPE
+                </Text>
+                <View style={styles.accountTypeRow}>
+                  {(['bank', 'cash', 'credit', 'wallet'] as const).map((t) => {
+                    const isSelected = newAccType === t;
+                    const typeIcon = getAccountIcon(t);
+                    const TypeIconComp = typeIcon.Icon;
+                    return (
+                      <TouchableOpacity
+                        key={t}
+                        onPress={() => setNewAccType(t)}
+                        style={[
+                          styles.typePill,
+                          {
+                            backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
+                            borderColor: isSelected ? colors.primary : colors.borderLight,
+                          },
+                        ]}
+                      >
+                        <TypeIconComp
+                          size={14}
+                          color={isSelected ? colors.primary : colors.secondaryText}
+                          style={{ marginRight: 5 }}
+                        />
+                        <Text
+                          variant="xs"
+                          weight={isSelected ? 'bold' : 'medium'}
+                          style={{
+                            color: isSelected ? colors.primary : colors.mainText,
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {t}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  onPress={handleCreateOrUpdateAccount}
+                  disabled={addingAccount}
+                  activeOpacity={0.8}
+                  style={[styles.saveAccountBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Check size={16} color={colors.onPrimary} />
+                  <Text variant="sm" weight="bold" style={{ color: colors.onPrimary, marginLeft: 6 }}>
+                    {addingAccount ? 'Saving...' : editingAccountId ? 'Update Account' : 'Save Account'}
+                  </Text>
+                </TouchableOpacity>
+              </Card>
+            ) : null}
+
+            {/* Accounts List */}
+            <View style={styles.accountsList}>
+              {accounts.map((acc) => {
+                const accIcon = getAccountIcon(acc.type);
+                const AccIconComp = accIcon.Icon;
+
+                return (
+                  <View
+                    key={acc.id}
+                    style={[
+                      styles.accountCard,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: isDark ? colors.border : colors.borderLight,
+                      },
+                      !isDark ? Shadows.sm : undefined,
+                    ]}
+                  >
+                    <View style={styles.accountCardRow}>
+                      <View style={[styles.accIconBg, { backgroundColor: accIcon.bg }]}>
+                        <AccIconComp size={20} color={accIcon.color} strokeWidth={2.2} />
+                      </View>
+
+                      <View style={styles.accInfo}>
+                        <View style={styles.accNameRow}>
+                          <Text variant="sm" weight="bold" numberOfLines={1}>
+                            {acc.name}
+                          </Text>
+                          {acc.is_default ? (
+                            <Badge label="Primary" variant="primary" size="sm" />
+                          ) : null}
+                        </View>
+                        <Text variant="xs" color="secondary" style={{ textTransform: 'capitalize', marginTop: 1 }}>
+                          {acc.type} Account
+                        </Text>
+                      </View>
+
+                      <View style={styles.accRightCol}>
+                        <Text variant="base" weight="extrabold" style={{ color: colors.mainText }}>
+                          {formatCurrency(acc.balance, activeCurrency)}
+                        </Text>
+
+                        <View style={styles.accActionRow}>
+                          {!acc.is_default ? (
+                            <TouchableOpacity
+                              onPress={() => handleSetPrimary(acc)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={[
+                                styles.actionPillBtn,
+                                {
+                                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                                  borderColor: colors.borderLight,
+                                },
+                              ]}
+                              accessibilityLabel="Set as primary"
+                            >
+                              <Star size={12} color={colors.secondaryText} />
+                            </TouchableOpacity>
+                          ) : null}
+
+                          <TouchableOpacity
+                            onPress={() => startEditAccount(acc)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={[
+                              styles.actionPillBtn,
+                              {
+                                backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                                borderColor: colors.borderLight,
+                              },
+                            ]}
+                            accessibilityLabel="Edit account"
+                          >
+                            <Pencil size={12} color={colors.primary} />
+                          </TouchableOpacity>
+
+                          {accounts.length > 1 ? (
+                            <TouchableOpacity
+                              onPress={() => handleDeleteAccount(acc)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={[
+                                styles.actionPillBtn,
+                                {
+                                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                                  borderColor: colors.borderLight,
+                                },
+                              ]}
+                              accessibilityLabel="Delete account"
+                            >
+                              <Trash2 size={12} color={colors.error} />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      </View>
+                    </View>
+                  </View>
                 );
               })}
             </View>
-
-            <Button
-              title={editingAccountId ? 'Update Account' : 'Add Account'}
-              variant="primary"
-              size="md"
-              loading={addingAccount}
-              onPress={handleCreateOrUpdateAccount}
-              buttonStyle={{ marginTop: Spacing.md }}
-            />
-          </Card>
-        ) : null}
-
-        <View style={styles.accountsList}>
-          {accounts.map((acc) => (
-            <Card key={acc.id} style={styles.accountCard}>
-              <View style={styles.accountCardRow}>
-                <View style={[styles.accIconBg, { backgroundColor: colors.primaryMuted }]}>
-                  <CreditCard size={20} color={colors.primary} />
-                </View>
-                <View style={styles.accInfo}>
-                  <View style={styles.accNameRow}>
-                    <Text variant="base" weight="bold" numberOfLines={1}>
-                      {acc.name}
-                    </Text>
-                    {acc.is_default ? (
-                      <Badge label="Primary" variant="primary" size="sm" />
-                    ) : null}
-                  </View>
-                  <Text variant="xs" color="secondary" style={{ textTransform: 'capitalize' }}>
-                    {acc.type} Account
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <CurrencyText
-                    amount={acc.balance}
-                    currency={activeCurrency}
-                    variant="base"
-                    weight="bold"
-                  />
-                  <View style={styles.accActionRow}>
-                    {!acc.is_default ? (
-                      <TouchableOpacity
-                        onPress={() => handleSetPrimary(acc)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        accessibilityLabel="Set as primary account"
-                      >
-                        <Star size={14} color={colors.warning} />
-                      </TouchableOpacity>
-                    ) : null}
-                    <TouchableOpacity
-                      onPress={() => startEditAccount(acc)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      accessibilityLabel="Edit account"
-                    >
-                      <Pencil size={14} color={colors.primary} />
-                    </TouchableOpacity>
-                    {accounts.length > 1 ? (
-                      <TouchableOpacity
-                        onPress={() => handleDeleteAccount(acc)}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        accessibilityLabel="Delete account"
-                      >
-                        <Trash2 size={14} color={colors.error} />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-            </Card>
-          ))}
-        </View>
+          </View>
         </ScrollView>
       )}
     </KeyboardAvoidingView>
@@ -541,65 +840,191 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
   },
-  sectionHeader: {
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Spacing.xs,
-    marginLeft: 4,
+    paddingHorizontal: 2,
+  },
+  sectionTitle: {
     letterSpacing: 0.5,
   },
-  sectionCard: {
+  heroCard: {
     padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
     marginBottom: Spacing.lg,
+  },
+  salaryInputGroup: {
+    marginBottom: Spacing.md,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  presetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  paydaySection: {
+    marginBottom: Spacing.lg,
+  },
+  paydayLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  paydayChipsRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  paydayChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
   salaryActionRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
-    marginTop: Spacing.xs,
   },
-  allocHeaderRow: {
-    marginBottom: Spacing.xs,
-  },
-  allocTitleRow: {
+  saveSalaryBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  recordCreditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  sectionWrapper: {
+    marginBottom: Spacing.lg,
+  },
+  allocationCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+  },
+  ratioBarContainer: {
+    height: 8,
+    borderRadius: BorderRadius.full,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    gap: 2,
+    marginBottom: Spacing.md,
+  },
+  ratioBarSegment: {
+    height: '100%',
+  },
+  ratioPillarsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  ratioPillarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ratioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  divider: {
+    height: 1,
+  },
+  allocationsList: {
+    gap: Spacing.md,
   },
   allocRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
   },
-  allocInfo: {
-    gap: 2,
+  allocIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
   },
-  accountsHeader: {
+  allocDetailsCol: {
+    flex: 1,
+  },
+  allocTextRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.xs,
-    marginLeft: 4,
+    marginBottom: 4,
+  },
+  allocProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  allocProgressBarTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  allocProgressBarFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
+  },
+  addAccountPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
   },
   newAccountCard: {
     padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
     marginBottom: Spacing.md,
   },
   accountTypeRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.md,
   },
   typePill: {
     flex: 1,
-    paddingVertical: 7,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 7,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
   },
+  saveAccountBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
   accountsList: {
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   accountCard: {
     padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
   },
   accountCardRow: {
     flexDirection: 'row',
@@ -608,24 +1033,34 @@ const styles = StyleSheet.create({
   accIconBg: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
   accInfo: {
     flex: 1,
-    gap: 2,
   },
   accNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
+  accRightCol: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   accActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+  },
+  actionPillBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
 });
-

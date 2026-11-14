@@ -1,52 +1,55 @@
-import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
+import { useFocusEffect, useRouter } from "expo-router";
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  Platform,
-  StatusBar as RNStatusBar,
-} from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  BarChart3,
-  Wallet,
-  Sparkles,
-  TrendingUp,
-  Plus,
   ArrowDownLeft,
   ArrowLeftRight,
-  Users,
+  BarChart3,
   LogIn,
-} from 'lucide-react-native';
-import { useAppTheme } from '../../store/themeStore';
-import { useAuthStore } from '../../store/authStore';
-import { useDemoStore } from '../../store/demoStore';
-import { useSyncStore } from '../../store/syncStore';
-import { dashboardService, DashboardMetrics } from '../../services/dashboardService';
-import { DEMO_ANALYTICS_INSIGHTS } from '../../services/demoData';
+  Plus,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Wallet,
+} from "lucide-react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Text,
-  Heading,
+  Platform,
+  RefreshControl,
+  StatusBar as RNStatusBar,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CategoryProgressRow } from "../../components/charts/FinanceCharts";
+import {
   BalanceCard,
-  TransactionItem,
-  QuickActionButton,
-  MonthlyOverview,
-  IncomeExpenseChart,
-  DemoDataBadge,
   DashboardSkeleton,
+  DemoDataBadge,
   EmptyState,
   ErrorState,
+  Heading,
+  IncomeExpenseChart,
+  MonthlyOverview,
+  QuickActionButton,
+  Text,
+  TransactionItem,
   TransactionsIllustration,
-} from '../../components/ui';
-import { CategoryProgressRow } from '../../components/charts/FinanceCharts';
-import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
-import { formatCurrency } from '../../utils/currency';
-import { toast } from '../../store/toastStore';
-import { getErrorMessage } from '../../utils/errors';
-import { SupportedCurrency } from '../../types/database';
+} from "../../components/ui";
+import {
+  DashboardMetrics,
+  dashboardService,
+} from "../../services/dashboardService";
+import { DEMO_ANALYTICS_INSIGHTS } from "../../services/demoData";
+import { useAuthStore } from "../../store/authStore";
+import { useDemoStore } from "../../store/demoStore";
+import { useSyncStore } from "../../store/syncStore";
+import { useAppTheme } from "../../store/themeStore";
+import { toast } from "../../store/toastStore";
+import { BorderRadius, Shadows, Spacing } from "../../theme/tokens";
+import { SupportedCurrency } from "../../types/database";
+import { formatCurrency } from "../../utils/currency";
+import { getErrorMessage } from "../../utils/errors";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -59,7 +62,9 @@ export default function HomeScreen() {
   const demoProfile = useDemoStore((s) => s.demoProfile);
   const demoTransactions = useDemoStore((s) => s.demoTransactions);
   const demoAccounts = useDemoStore((s) => s.demoAccounts);
-  const getDemoDashboardMetrics = useDemoStore((s) => s.getDemoDashboardMetrics);
+  const getDemoDashboardMetrics = useDemoStore(
+    (s) => s.getDemoDashboardMetrics,
+  );
 
   const [realMetrics, setRealMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,14 +84,17 @@ export default function HomeScreen() {
     }
     try {
       setFetchError(null);
-      const data = await dashboardService.getDashboardMetrics(user.id, selectedDate);
+      const data = await dashboardService.getDashboardMetrics(
+        user.id,
+        selectedDate,
+      );
       hasLoadedRef.current = true;
       setRealMetrics(data);
     } catch (err: unknown) {
-      const msg = getErrorMessage(err, 'Unable to load dashboard metrics.');
+      const msg = getErrorMessage(err, "Unable to load dashboard metrics.");
       setFetchError(msg);
       if (hasLoadedRef.current) {
-        toast.error(msg, 'Sync Issue');
+        toast.error(msg, "Sync Issue");
       }
     } finally {
       setLoading(false);
@@ -97,7 +105,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchDashboard();
-    }, [fetchDashboard])
+    }, [fetchDashboard]),
   );
 
   useEffect(() => {
@@ -115,7 +123,10 @@ export default function HomeScreen() {
   void demoTransactions;
   void demoAccounts;
   void demoProfile;
-  const demoMetrics = getDemoDashboardMetrics(selectedDate.getFullYear(), selectedDate.getMonth());
+  const demoMetrics = getDemoDashboardMetrics(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+  );
 
   const emptyRealMetrics: DashboardMetrics = useMemo(
     () => ({
@@ -134,17 +145,28 @@ export default function HomeScreen() {
       categoryBreakdown: [],
       monthlyTrends: [],
     }),
-    [profile?.monthly_salary, profile?.salary_date]
+    [profile?.monthly_salary, profile?.salary_date],
   );
 
-  const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
-  const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 28 : 16);
-  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 24 : 10);
+  const statusBarHeight =
+    Platform.OS === "android" ? (RNStatusBar.currentHeight ?? 24) : 0;
+  const topInset = Math.max(
+    insets.top,
+    statusBarHeight,
+    Platform.OS === "android" ? 28 : 16,
+  );
+  const bottomInset =
+    insets.bottom > 0 ? insets.bottom : Platform.OS === "android" ? 24 : 10;
   const tabHeight = 62 + bottomInset;
 
   if (loading && !isDemo && !realMetrics) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset }]}>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background, paddingTop: topInset },
+        ]}
+      >
         <DashboardSkeleton />
       </View>
     );
@@ -155,7 +177,11 @@ export default function HomeScreen() {
       <View
         style={[
           styles.container,
-          { backgroundColor: colors.background, justifyContent: 'center', paddingTop: topInset },
+          {
+            backgroundColor: colors.background,
+            justifyContent: "center",
+            paddingTop: topInset,
+          },
         ]}
       >
         <ErrorState
@@ -170,12 +196,16 @@ export default function HomeScreen() {
     );
   }
 
-  const metrics = isDemo ? demoMetrics : (realMetrics || emptyRealMetrics);
+  const metrics = isDemo ? demoMetrics : realMetrics || emptyRealMetrics;
   const activeProfile = isDemo ? demoProfile : profile;
-  const currency: SupportedCurrency = (activeProfile?.currency as SupportedCurrency) || 'INR';
+  const currency: SupportedCurrency =
+    (activeProfile?.currency as SupportedCurrency) || "INR";
   const displayName = isDemo
     ? demoProfile.full_name
-    : (profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Financier');
+    : profile?.full_name ||
+      user?.user_metadata?.full_name ||
+      user?.email?.split("@")[0] ||
+      "Financier";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -183,7 +213,7 @@ export default function HomeScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10),
+            paddingTop: topInset + (Platform.OS === "android" ? 14 : 10),
             paddingBottom: tabHeight + Spacing.lg,
           },
         ]}
@@ -199,7 +229,12 @@ export default function HomeScreen() {
         {/* 1. TOP HEADER */}
         <View style={styles.topHeader}>
           <View style={styles.welcomeTextGroup}>
-            <Text variant="xs" color="secondary" weight="semibold" style={styles.greetingSub}>
+            <Text
+              variant="xs"
+              color="secondary"
+              weight="semibold"
+              style={styles.greetingSub}
+            >
               WELCOME BACK
             </Text>
             <Heading level={2} style={styles.userName} numberOfLines={1}>
@@ -218,7 +253,7 @@ export default function HomeScreen() {
                   borderColor: colors.borderLight,
                 },
               ]}
-              onPress={() => router.push('/analytics')}
+              onPress={() => router.push("/analytics")}
               accessibilityLabel="View Analytics"
             >
               <BarChart3 size={17} color={colors.primary} />
@@ -228,11 +263,14 @@ export default function HomeScreen() {
 
         {isDemo ? (
           <TouchableOpacity
-            onPress={() => router.push('/(auth)/login')}
+            onPress={() => router.push("/(auth)/login")}
             activeOpacity={0.8}
             style={[
               styles.demoPromptBanner,
-              { backgroundColor: colors.primaryMuted, borderColor: colors.primary },
+              {
+                backgroundColor: colors.primaryMuted,
+                borderColor: colors.primary,
+              },
             ]}
           >
             <View style={{ flex: 1 }}>
@@ -240,12 +278,22 @@ export default function HomeScreen() {
                 Demo Mode Preview
               </Text>
               <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
-                Sign in with your account to sync real-time finances across devices.
+                Sign in with your account to sync real-time finances across
+                devices.
               </Text>
             </View>
-            <View style={[styles.demoSignInChip, { backgroundColor: colors.primary }]}>
+            <View
+              style={[
+                styles.demoSignInChip,
+                { backgroundColor: colors.primary },
+              ]}
+            >
               <LogIn size={12} color={colors.onPrimary} />
-              <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, fontSize: 11 }}>
+              <Text
+                variant="xs"
+                weight="bold"
+                style={{ color: colors.onPrimary, fontSize: 11 }}
+              >
                 Sign In
               </Text>
             </View>
@@ -278,7 +326,7 @@ export default function HomeScreen() {
           netSavings={metrics.netSavings}
           savingsRate={metrics.savingsRate}
           currency={currency}
-          onPressAnalytics={() => router.push('/analytics')}
+          onPressAnalytics={() => router.push("/analytics")}
         />
 
         {/* 4. QUICK ACTIONS (Modern Unified Action Card) */}
@@ -288,7 +336,7 @@ export default function HomeScreen() {
             {
               backgroundColor: colors.surface,
               borderColor: isDark ? colors.border : colors.borderLight,
-              shadowColor: '#000',
+              shadowColor: "#000",
               shadowOffset: { width: 0, height: 3 },
               shadowOpacity: isDark ? 0.2 : 0.04,
               shadowRadius: 8,
@@ -300,25 +348,40 @@ export default function HomeScreen() {
             icon={Plus}
             label="Expense"
             variant="negative"
-            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'expense' } })}
+            onPress={() =>
+              router.push({
+                pathname: "/transactions/add",
+                params: { type: "expense" },
+              })
+            }
           />
           <QuickActionButton
             icon={ArrowDownLeft}
             label="Income"
             variant="positive"
-            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'income' } })}
+            onPress={() =>
+              router.push({
+                pathname: "/transactions/add",
+                params: { type: "income" },
+              })
+            }
           />
           <QuickActionButton
             icon={ArrowLeftRight}
             label="Transfer"
             variant="secondary"
-            onPress={() => router.push({ pathname: '/transactions/add', params: { type: 'transfer' } })}
+            onPress={() =>
+              router.push({
+                pathname: "/transactions/add",
+                params: { type: "transfer" },
+              })
+            }
           />
           <QuickActionButton
             icon={Users}
             label="Split"
             variant="primary"
-            onPress={() => router.push('/(tabs)/split')}
+            onPress={() => router.push("/(tabs)/split")}
           />
         </View>
 
@@ -335,7 +398,12 @@ export default function HomeScreen() {
         >
           <View style={styles.salaryHeaderRow}>
             <View style={styles.iconHeadingRow}>
-              <View style={[styles.salaryIconBadge, { backgroundColor: colors.primaryMuted }]}>
+              <View
+                style={[
+                  styles.salaryIconBadge,
+                  { backgroundColor: colors.primaryMuted },
+                ]}
+              >
                 <Wallet size={15} color={colors.primary} />
               </View>
               <View>
@@ -348,16 +416,30 @@ export default function HomeScreen() {
               </View>
             </View>
             <TouchableOpacity
-              onPress={() => router.push('/settings')}
+              onPress={() => router.push("/settings")}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text variant="xs" color="primary" weight="bold" style={{ fontSize: 11 }}>
+              <Text
+                variant="xs"
+                color="primary"
+                weight="bold"
+                style={{ fontSize: 11 }}
+              >
                 Manage →
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.salaryStatsRow, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
+          <View
+            style={[
+              styles.salaryStatsRow,
+              {
+                backgroundColor: isDark
+                  ? colors.elevatedSurface
+                  : colors.background,
+              },
+            ]}
+          >
             <View style={styles.salaryStatItem}>
               <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Base Monthly
@@ -366,7 +448,12 @@ export default function HomeScreen() {
                 {formatCurrency(metrics.monthlySalary, currency)}
               </Text>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
+            <View
+              style={[
+                styles.statDivider,
+                { backgroundColor: colors.borderLight },
+              ]}
+            />
             <View style={styles.salaryStatItem}>
               <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Additional
@@ -375,7 +462,12 @@ export default function HomeScreen() {
                 {formatCurrency(metrics.additionalIncome, currency)}
               </Text>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
+            <View
+              style={[
+                styles.statDivider,
+                { backgroundColor: colors.borderLight },
+              ]}
+            />
             <View style={styles.salaryStatItem}>
               <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Pay Date
@@ -400,15 +492,25 @@ export default function HomeScreen() {
         >
           <View style={styles.sectionHeaderRow}>
             <View style={styles.iconHeadingRow}>
-              <View style={[styles.chartIconBadge, { backgroundColor: colors.secondaryMuted }]}>
+              <View
+                style={[
+                  styles.chartIconBadge,
+                  { backgroundColor: colors.secondaryMuted },
+                ]}
+              >
                 <TrendingUp size={14} color={colors.secondary} />
               </View>
               <Text variant="xs" weight="bold">
                 Income vs Expenses
               </Text>
             </View>
-            <TouchableOpacity onPress={() => router.push('/analytics')}>
-              <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 11 }}>
+            <TouchableOpacity onPress={() => router.push("/analytics")}>
+              <Text
+                variant="xs"
+                color="secondary"
+                weight="medium"
+                style={{ fontSize: 11 }}
+              >
                 View Trends →
               </Text>
             </TouchableOpacity>
@@ -433,8 +535,13 @@ export default function HomeScreen() {
               <Text variant="xs" weight="bold">
                 Top Spending
               </Text>
-              <TouchableOpacity onPress={() => router.push('/analytics')}>
-                <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 11 }}>
+              <TouchableOpacity onPress={() => router.push("/analytics")}>
+                <Text
+                  variant="xs"
+                  color="secondary"
+                  weight="medium"
+                  style={{ fontSize: 11 }}
+                >
                   All Categories →
                 </Text>
               </TouchableOpacity>
@@ -464,14 +571,28 @@ export default function HomeScreen() {
               !isDark ? Shadows.sm : undefined,
             ]}
           >
-            <View style={[styles.insightIconCircle, { backgroundColor: colors.primaryMuted }]}>
+            <View
+              style={[
+                styles.insightIconCircle,
+                { backgroundColor: colors.primaryMuted },
+              ]}
+            >
               <Sparkles size={14} color={colors.primary} />
             </View>
             <View style={styles.insightTextGroup}>
-              <Text variant="xs" weight="bold" color="primary" style={{ fontSize: 10, letterSpacing: 0.8 }}>
+              <Text
+                variant="xs"
+                weight="bold"
+                color="primary"
+                style={{ fontSize: 10, letterSpacing: 0.8 }}
+              >
                 FINANCIAL INSIGHT
               </Text>
-              <Text variant="xs" color="secondary" style={{ lineHeight: 16, marginTop: 1, fontSize: 11.5 }}>
+              <Text
+                variant="xs"
+                color="secondary"
+                style={{ lineHeight: 16, marginTop: 1, fontSize: 11.5 }}
+              >
                 {DEMO_ANALYTICS_INSIGHTS[0].description}
               </Text>
             </View>
@@ -483,7 +604,7 @@ export default function HomeScreen() {
           <Text variant="sm" weight="bold">
             Recent Transactions
           </Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/transactions")}>
             <Text variant="xs" color="primary" weight="bold">
               See All →
             </Text>
@@ -507,7 +628,9 @@ export default function HomeScreen() {
                 transaction={item}
                 currency={currency}
                 onPress={() => router.push(`/transactions/${item.id}`)}
-                showDivider={idx < Math.min(metrics.recentTransactions.length, 5) - 1}
+                showDivider={
+                  idx < Math.min(metrics.recentTransactions.length, 5) - 1
+                }
               />
             ))}
           </View>
@@ -531,9 +654,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   topHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.xs,
   },
   welcomeTextGroup: {
@@ -550,13 +673,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   headerRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   demoPromptBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: 10,
@@ -565,8 +688,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   demoSignInChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -577,65 +700,65 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   monthSelectorRow: {
     marginVertical: Spacing.xs,
-    alignItems: 'center',
+    alignItems: "center",
   },
   quickActionsCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: Spacing.xs,
-    borderRadius: BorderRadius['2xl'],
+    borderRadius: BorderRadius["2xl"],
     borderWidth: 1,
     marginBottom: Spacing.sm + 4,
   },
   salaryCard: {
     marginBottom: Spacing.sm + 4,
     padding: Spacing.md + 2,
-    borderRadius: BorderRadius['2xl'],
+    borderRadius: BorderRadius["2xl"],
     borderWidth: 1,
   },
   salaryHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.sm + 2,
   },
   salaryIconBadge: {
     width: 28,
     height: 28,
     borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   chartIconBadge: {
     width: 26,
     height: 26,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   salaryStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.xl,
   },
   salaryStatItem: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 2,
   },
   statDivider: {
@@ -652,24 +775,24 @@ const styles = StyleSheet.create({
   chartCard: {
     marginBottom: Spacing.sm + 4,
     padding: Spacing.md + 2,
-    borderRadius: BorderRadius['2xl'],
+    borderRadius: BorderRadius["2xl"],
     borderWidth: 1,
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.xs + 2,
   },
   breakdownCard: {
     marginBottom: Spacing.sm + 4,
     padding: Spacing.md + 2,
-    borderRadius: BorderRadius['2xl'],
+    borderRadius: BorderRadius["2xl"],
     borderWidth: 1,
   },
   insightBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     padding: Spacing.md,
     borderRadius: BorderRadius.xl,
@@ -680,17 +803,17 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(163, 230, 53, 0.12)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(163, 230, 53, 0.12)",
   },
   insightTextGroup: {
     flex: 1,
   },
   recentTransactionsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 4,
     marginBottom: Spacing.xs,
     paddingHorizontal: 2,
