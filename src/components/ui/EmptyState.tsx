@@ -6,19 +6,23 @@ import { Text } from './Typography';
 import { Button } from './Button';
 
 interface EmptyStateProps {
+  illustration?: React.ReactNode;
   icon?: React.ReactNode;
   title: string;
   description: string;
   actionTitle?: string;
+  actionIcon?: React.ReactNode;
   onAction?: () => void;
   style?: ViewStyle;
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
+  illustration,
   icon,
   title,
   description,
   actionTitle,
+  actionIcon,
   onAction,
   style,
 }) => {
@@ -26,7 +30,22 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      {icon ? <View style={styles.iconContainer}>{icon}</View> : null}
+      {illustration ? (
+        <View style={styles.illustrationWrapper}>{illustration}</View>
+      ) : icon ? (
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor: colors.softAccent,
+              borderColor: colors.borderLight,
+            },
+          ]}
+        >
+          {icon}
+        </View>
+      ) : null}
+
       <Text variant="lg" weight="bold" align="center" style={styles.title}>
         {title}
       </Text>
@@ -37,6 +56,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <View style={styles.actionWrapper}>
           <Button
             title={actionTitle}
+            leftIcon={actionIcon}
             onPress={onAction}
             size="md"
             fullWidth={false}
@@ -49,23 +69,32 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    padding: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xxl,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  illustrationWrapper: {
+    marginBottom: Spacing.lg,
+  },
   iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: Spacing.md,
-    opacity: 0.9,
   },
   title: {
     marginBottom: Spacing.xs,
+    letterSpacing: -0.3,
   },
   description: {
-    maxWidth: 280,
+    maxWidth: 290,
     lineHeight: 20,
   },
   actionWrapper: {
     marginTop: Spacing.lg,
   },
 });
-

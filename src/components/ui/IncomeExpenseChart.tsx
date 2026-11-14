@@ -18,7 +18,7 @@ interface IncomeExpenseChartProps {
 
 export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
   data,
-  height = 140,
+  height = 148,
 }) => {
   const { colors, isDark } = useAppTheme();
   const screenWidth = Dimensions.get('window').width - Spacing.lg * 2 - Spacing.lg * 2;
@@ -40,11 +40,12 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
     1000
   );
 
-  const paddingTop = 8;
-  const paddingBottom = 22;
+  const paddingTop = 12;
+  const paddingBottom = 24;
   const chartHeight = height - paddingTop - paddingBottom;
   const groupWidth = chartWidth / data.length;
-  const barWidth = Math.max(7, groupWidth * 0.24);
+  const barWidth = Math.max(8, groupWidth * 0.22);
+  const barGap = 4;
 
   return (
     <View style={styles.container}>
@@ -52,13 +53,13 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: colors.positive }]} />
-          <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 10 }}>
+          <Text variant="xs" color="secondary" weight="semibold" style={{ fontSize: 11 }}>
             Income
           </Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.dot, { backgroundColor: colors.negative }]} />
-          <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 10 }}>
+          <Text variant="xs" color="secondary" weight="semibold" style={{ fontSize: 11 }}>
             Expense
           </Text>
         </View>
@@ -76,7 +77,7 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
               x2={chartWidth}
               y2={y}
               stroke={colors.borderLight}
-              strokeDasharray="3 3"
+              strokeDasharray="4 4"
               strokeWidth={1}
             />
           );
@@ -84,12 +85,12 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
 
         {/* Bars */}
         {data.map((item, idx) => {
-          const groupX = idx * groupWidth;
-          const incomeHeight = Math.max(2, (item.income / maxVal) * chartHeight);
-          const expenseHeight = Math.max(2, (item.expense / maxVal) * chartHeight);
+          const groupCenterX = idx * groupWidth + groupWidth / 2;
+          const incomeHeight = item.income > 0 ? Math.max(4, (item.income / maxVal) * chartHeight) : 2;
+          const expenseHeight = item.expense > 0 ? Math.max(4, (item.expense / maxVal) * chartHeight) : 2;
 
-          const incomeX = groupX + groupWidth * 0.20;
-          const expenseX = incomeX + barWidth + 3;
+          const incomeX = groupCenterX - barWidth - barGap / 2;
+          const expenseX = groupCenterX + barGap / 2;
 
           const incomeY = paddingTop + chartHeight - incomeHeight;
           const expenseY = paddingTop + chartHeight - expenseHeight;
@@ -102,24 +103,28 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
                 y={incomeY}
                 width={barWidth}
                 height={incomeHeight}
-                rx={2.5}
-                fill={colors.positive}
+                rx={Math.min(barWidth / 2, 4)}
+                fill={item.income > 0 ? colors.positive : colors.borderLight}
+                opacity={item.income > 0 ? 1 : 0.4}
               />
+
               {/* Expense bar */}
               <Rect
                 x={expenseX}
                 y={expenseY}
                 width={barWidth}
                 height={expenseHeight}
-                rx={2.5}
-                fill={colors.negative}
+                rx={Math.min(barWidth / 2, 4)}
+                fill={item.expense > 0 ? colors.negative : colors.borderLight}
+                opacity={item.expense > 0 ? 1 : 0.4}
               />
+
               {/* Month label */}
               <SvgText
-                x={groupX + groupWidth / 2}
-                y={height - 4}
+                x={groupCenterX}
+                y={height - 6}
                 fill={colors.secondaryText}
-                fontSize={9.5}
+                fontSize={10}
                 fontWeight="500"
                 textAnchor="middle"
               >
@@ -136,22 +141,24 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
+    paddingVertical: Spacing.xs,
   },
   legendRow: {
     flexDirection: 'row',
-    alignSelf: 'flex-end',
+    justifyContent: 'flex-end',
+    width: '100%',
     gap: Spacing.md,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   emptyContainer: {
     alignItems: 'center',

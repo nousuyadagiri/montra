@@ -3,13 +3,19 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { LucideIcon } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { Text } from './Typography';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import { BorderRadius } from '../../theme/tokens';
 
 interface QuickActionButtonProps {
   icon: LucideIcon;
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'positive' | 'negative' | 'secondary' | 'neutral';
+}
+
+interface ActionThemeSpec {
+  iconColor: string;
+  bgColor: string;
+  borderColor: string;
 }
 
 export const QuickActionButton: React.FC<QuickActionButtonProps> = ({
@@ -20,30 +26,42 @@ export const QuickActionButton: React.FC<QuickActionButtonProps> = ({
 }) => {
   const { colors, isDark } = useAppTheme();
 
-  let iconColor = colors.mainText;
-  let bgColor = colors.surface;
+  const getActionTheme = (): ActionThemeSpec => {
+    switch (variant) {
+      case 'negative': // Expense
+        return {
+          iconColor: isDark ? '#FB7185' : '#E11D48',
+          bgColor: isDark ? 'rgba(244, 63, 94, 0.16)' : '#FFF1F2',
+          borderColor: isDark ? 'rgba(244, 63, 94, 0.38)' : '#FECDD3',
+        };
+      case 'positive': // Income
+        return {
+          iconColor: isDark ? '#34D399' : '#059669',
+          bgColor: isDark ? 'rgba(16, 185, 129, 0.16)' : '#ECFDF5',
+          borderColor: isDark ? 'rgba(16, 185, 129, 0.38)' : '#A7F3D0',
+        };
+      case 'secondary': // Transfer
+        return {
+          iconColor: isDark ? '#818CF8' : '#4F46E5',
+          bgColor: isDark ? 'rgba(99, 102, 241, 0.16)' : '#EEF2FF',
+          borderColor: isDark ? 'rgba(99, 102, 241, 0.38)' : '#C7D2FE',
+        };
+      case 'primary': // Split
+        return {
+          iconColor: isDark ? '#38BDF8' : '#0284C7',
+          bgColor: isDark ? 'rgba(56, 189, 248, 0.16)' : '#F0F9FF',
+          borderColor: isDark ? 'rgba(56, 189, 248, 0.38)' : '#BAE6FD',
+        };
+      default:
+        return {
+          iconColor: colors.mainText,
+          bgColor: isDark ? colors.elevatedSurface : colors.surface,
+          borderColor: isDark ? colors.border : colors.borderLight,
+        };
+    }
+  };
 
-  switch (variant) {
-    case 'primary':
-      iconColor = colors.primary;
-      bgColor = colors.primaryMuted;
-      break;
-    case 'positive':
-      iconColor = colors.positive;
-      bgColor = colors.successMuted;
-      break;
-    case 'negative':
-      iconColor = colors.negative;
-      bgColor = colors.expenseMuted;
-      break;
-    case 'secondary':
-      iconColor = colors.secondary;
-      bgColor = colors.secondaryMuted;
-      break;
-    default:
-      iconColor = colors.mainText;
-      bgColor = colors.elevatedSurface;
-  }
+  const actionTheme = getActionTheme();
 
   return (
     <TouchableOpacity
@@ -57,14 +75,19 @@ export const QuickActionButton: React.FC<QuickActionButtonProps> = ({
         style={[
           styles.iconContainer,
           {
-            backgroundColor: bgColor,
-            borderColor: colors.borderLight,
+            backgroundColor: actionTheme.bgColor,
+            borderColor: actionTheme.borderColor,
           },
         ]}
       >
-        <Icon size={18} color={iconColor} strokeWidth={2.2} />
+        <Icon size={21} color={actionTheme.iconColor} strokeWidth={2.4} />
       </View>
-      <Text variant="xs" color="secondary" weight="semibold" style={styles.label}>
+      <Text
+        variant="xs"
+        weight="bold"
+        numberOfLines={1}
+        style={[styles.label, { color: colors.mainText }]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -75,19 +98,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    gap: 7,
   },
   iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    borderWidth: 1,
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.xl, // 16px sleek squircle
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
     textAlign: 'center',
-    fontSize: 11,
-    letterSpacing: 0.1,
+    fontSize: 12,
+    letterSpacing: -0.2,
   },
 });

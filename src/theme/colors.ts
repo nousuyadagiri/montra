@@ -39,7 +39,8 @@ export type ThemeName =
   | 'alpine-cobalt'
   | 'glacier-mist'
   | 'soft-periwinkle'
-  | 'minimal-pearl';
+  | 'minimal-pearl'
+  | 'nordic-frost';
 
 export interface ThemeOption {
   id: ThemeName;
@@ -132,6 +133,15 @@ export const THEME_OPTIONS: ThemeOption[] = [
     previewBgDark: '#0F0E0D',
     previewColor: '#4A463F',
     accentColor: '#C7C1B6',
+  },
+  {
+    id: 'nordic-frost',
+    name: 'Nordic Frost',
+    description: 'Polar slate & arctic spruce',
+    previewBgLight: '#F3F6F8',
+    previewBgDark: '#090F13',
+    previewColor: '#1E4E63',
+    accentColor: '#64AEC9',
   },
 ];
 
@@ -553,6 +563,33 @@ const MinimalPearlPair = buildThemePair({
   darkTextTertiary: '#6B665D',
 });
 
+const NordicFrostPair = buildThemePair({
+  lightBg: '#F3F6F8',
+  lightElevated: '#E8EDF1',
+  lightPrimary: '#1E4E63',
+  lightPrimaryMuted: 'rgba(30, 78, 99, 0.11)',
+  lightAccent: '#3A7087',
+  lightSoftAccent: '#E3ECF0',
+  lightBorder: '#D7E0E6',
+  lightBorderLight: '#E8EEF2',
+  lightText: '#101B22',
+  lightTextSecondary: '#4A5D68',
+  lightTextTertiary: '#8799A5',
+  darkBg: '#090F13',
+  darkSurface: '#10181E',
+  darkElevated: '#17232B',
+  darkPrimary: '#64AEC9',
+  darkPrimaryMuted: 'rgba(100, 174, 201, 0.17)',
+  darkOnPrimary: '#081217',
+  darkAccent: '#86C7DE',
+  darkSoftAccent: '#172731',
+  darkBorder: '#1F313B',
+  darkBorderLight: '#16232B',
+  darkText: '#F2F6F8',
+  darkTextSecondary: '#8CA2AF',
+  darkTextTertiary: '#5C717E',
+});
+
 /* -------------------------------------------------------------
  * Dynamic Theme Resolver
  * ------------------------------------------------------------- */
@@ -572,6 +609,7 @@ export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }
   'glacier-mist': GlacierMistPair,
   'soft-periwinkle': SoftPeriwinklePair,
   'minimal-pearl': MinimalPearlPair,
+  'nordic-frost': NordicFrostPair,
 };
 
 export const getThemeColors = (themeName: ThemeName, isDark: boolean): ThemeColors => {

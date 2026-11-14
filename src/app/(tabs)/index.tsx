@@ -39,9 +39,10 @@ import {
   DashboardSkeleton,
   EmptyState,
   ErrorState,
+  TransactionsIllustration,
 } from '../../components/ui';
 import { CategoryProgressRow } from '../../components/charts/FinanceCharts';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
 import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
@@ -50,7 +51,7 @@ import { SupportedCurrency } from '../../types/database';
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -280,8 +281,21 @@ export default function HomeScreen() {
           onPressAnalytics={() => router.push('/analytics')}
         />
 
-        {/* 4. QUICK ACTIONS */}
-        <View style={styles.quickActionsRow}>
+        {/* 4. QUICK ACTIONS (Modern Unified Action Card) */}
+        <View
+          style={[
+            styles.quickActionsCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.border : colors.borderLight,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: isDark ? 0.2 : 0.04,
+              shadowRadius: 8,
+              elevation: 2,
+            },
+          ]}
+        >
           <QuickActionButton
             icon={Plus}
             label="Expense"
@@ -308,52 +322,65 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 5. SALARY OVERVIEW (Compact Strip) */}
+        {/* 5. SALARY OVERVIEW (Elevated Fintech Strip) */}
         <View
           style={[
             styles.salaryCard,
             {
               backgroundColor: colors.surface,
-              borderColor: colors.borderLight,
+              borderColor: isDark ? colors.border : colors.borderLight,
             },
+            !isDark ? Shadows.sm : undefined,
           ]}
         >
           <View style={styles.salaryHeaderRow}>
             <View style={styles.iconHeadingRow}>
-              <Wallet size={15} color={colors.primary} />
-              <Text variant="xs" weight="bold">
-                Salary Overview
-              </Text>
+              <View style={[styles.salaryIconBadge, { backgroundColor: colors.primaryMuted }]}>
+                <Wallet size={15} color={colors.primary} />
+              </View>
+              <View>
+                <Text variant="xs" weight="bold">
+                  Salary Overview
+                </Text>
+                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                  Recurring monthly payday
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity onPress={() => router.push('/settings')}>
+            <TouchableOpacity
+              onPress={() => router.push('/settings')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Text variant="xs" color="primary" weight="bold" style={{ fontSize: 11 }}>
-                Manage
+                Manage →
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.salaryStatsRow}>
+          <View style={[styles.salaryStatsRow, { backgroundColor: isDark ? colors.elevatedSurface : colors.background }]}>
             <View style={styles.salaryStatItem}>
               <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Base Monthly
               </Text>
-              <Text variant="sm" weight="bold" style={styles.statValue}>
+              <Text variant="sm" weight="extrabold" style={styles.statValue}>
                 {formatCurrency(metrics.monthlySalary, currency)}
               </Text>
             </View>
+            <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
             <View style={styles.salaryStatItem}>
               <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Additional
               </Text>
-              <Text variant="sm" weight="bold" style={styles.statValue}>
+              <Text variant="sm" weight="extrabold" style={styles.statValue}>
                 {formatCurrency(metrics.additionalIncome, currency)}
               </Text>
             </View>
+            <View style={[styles.statDivider, { backgroundColor: colors.borderLight }]} />
             <View style={styles.salaryStatItem}>
               <Text variant="xs" color="secondary" style={styles.statLabel}>
                 Pay Date
               </Text>
-              <Text variant="sm" weight="bold" style={styles.statValue}>
+              <Text variant="sm" weight="extrabold" style={styles.statValue}>
                 Day {metrics.salaryDate ?? 1}
               </Text>
             </View>
@@ -366,25 +393,28 @@ export default function HomeScreen() {
             styles.chartCard,
             {
               backgroundColor: colors.surface,
-              borderColor: colors.borderLight,
+              borderColor: isDark ? colors.border : colors.borderLight,
             },
+            !isDark ? Shadows.sm : undefined,
           ]}
         >
           <View style={styles.sectionHeaderRow}>
             <View style={styles.iconHeadingRow}>
-              <TrendingUp size={15} color={colors.secondary} />
+              <View style={[styles.chartIconBadge, { backgroundColor: colors.secondaryMuted }]}>
+                <TrendingUp size={14} color={colors.secondary} />
+              </View>
               <Text variant="xs" weight="bold">
                 Income vs Expenses
               </Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/analytics')}>
               <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 11 }}>
-                View Trends
+                View Trends →
               </Text>
             </TouchableOpacity>
           </View>
 
-          <IncomeExpenseChart data={metrics.monthlyTrends || []} height={135} />
+          <IncomeExpenseChart data={metrics.monthlyTrends || []} height={140} />
         </View>
 
         {/* 7. SPENDING BREAKDOWN */}
@@ -394,8 +424,9 @@ export default function HomeScreen() {
               styles.breakdownCard,
               {
                 backgroundColor: colors.surface,
-                borderColor: colors.borderLight,
+                borderColor: isDark ? colors.border : colors.borderLight,
               },
+              !isDark ? Shadows.sm : undefined,
             ]}
           >
             <View style={styles.sectionHeaderRow}>
@@ -404,7 +435,7 @@ export default function HomeScreen() {
               </Text>
               <TouchableOpacity onPress={() => router.push('/analytics')}>
                 <Text variant="xs" color="secondary" weight="medium" style={{ fontSize: 11 }}>
-                  All Categories
+                  All Categories →
                 </Text>
               </TouchableOpacity>
             </View>
@@ -428,15 +459,16 @@ export default function HomeScreen() {
               styles.insightBanner,
               {
                 backgroundColor: colors.surface,
-                borderColor: colors.borderLight,
+                borderColor: isDark ? colors.border : colors.borderLight,
               },
+              !isDark ? Shadows.sm : undefined,
             ]}
           >
-            <View style={styles.insightIconCircle}>
+            <View style={[styles.insightIconCircle, { backgroundColor: colors.primaryMuted }]}>
               <Sparkles size={14} color={colors.primary} />
             </View>
             <View style={styles.insightTextGroup}>
-              <Text variant="xs" weight="bold" color="primary" style={{ fontSize: 10 }}>
+              <Text variant="xs" weight="bold" color="primary" style={{ fontSize: 10, letterSpacing: 0.8 }}>
                 FINANCIAL INSIGHT
               </Text>
               <Text variant="xs" color="secondary" style={{ lineHeight: 16, marginTop: 1, fontSize: 11.5 }}>
@@ -453,7 +485,7 @@ export default function HomeScreen() {
           </Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
             <Text variant="xs" color="primary" weight="bold">
-              See All
+              See All →
             </Text>
           </TouchableOpacity>
         </View>
@@ -464,8 +496,9 @@ export default function HomeScreen() {
               styles.transactionsCard,
               {
                 backgroundColor: colors.surface,
-                borderColor: colors.borderLight,
+                borderColor: isDark ? colors.border : colors.borderLight,
               },
+              !isDark ? Shadows.sm : undefined,
             ]}
           >
             {metrics.recentTransactions.slice(0, 5).map((item, idx) => (
@@ -480,6 +513,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <EmptyState
+            illustration={<TransactionsIllustration size={130} />}
             title="No Transactions Yet"
             description="Tap '+ Expense' or '+ Income' above to record your first real transaction."
           />
@@ -550,59 +584,87 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.xs,
     alignItems: 'center',
   },
-  quickActionsRow: {
+  quickActionsCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: Spacing.xs,
-    marginBottom: Spacing.md,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.xs,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    marginBottom: Spacing.sm + 4,
   },
   salaryCard: {
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm + 4,
+    padding: Spacing.md + 2,
+    borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
   },
   salaryHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.sm + 2,
+  },
+  salaryIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartIconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   salaryStatsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.xl,
   },
   salaryStatItem: {
     flex: 1,
-    gap: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 22,
   },
   statLabel: {
     fontSize: 10.5,
   },
   statValue: {
-    fontSize: 13.5,
+    fontSize: 13,
+    letterSpacing: -0.2,
   },
   chartCard: {
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm + 4,
+    padding: Spacing.md + 2,
+    borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.xs + 2,
   },
   breakdownCard: {
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm + 4,
+    padding: Spacing.md + 2,
+    borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
   },
   insightBanner: {
@@ -610,14 +672,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.sm + 4,
   },
   insightIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(163, 230, 53, 0.12)',

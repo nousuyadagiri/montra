@@ -28,8 +28,10 @@ import {
   EmptyState,
   ErrorState,
   ListSkeleton,
+  BudgetIllustration,
+  SavingsGoalIllustration,
 } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
 import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
@@ -37,7 +39,7 @@ import { getErrorMessage } from '../../utils/errors';
 export default function BudgetsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -271,33 +273,54 @@ export default function BudgetsScreen() {
             <View
               style={[
                 styles.overviewCard,
-                { backgroundColor: colors.surface, borderColor: colors.borderLight },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+                !isDark ? Shadows.sm : undefined,
               ]}
             >
               <View style={styles.overviewTop}>
                 <View>
-                  <Text variant="xs" color="secondary" weight="semibold">
+                  <Text variant="xs" color="secondary" weight="bold" style={{ letterSpacing: 0.6 }}>
                     TOTAL MONTHLY BUDGET
                   </Text>
-                  <Text variant="xl" weight="extrabold" style={{ marginTop: 2 }}>
+                  <Text variant="2xl" weight="extrabold" style={{ marginTop: 2, letterSpacing: -0.5 }}>
                     {formatCurrency(totalBudgetLimit, currency)}
                   </Text>
                 </View>
 
-                <View style={styles.percentageBadge}>
+                <View
+                  style={[
+                    styles.percentageBadge,
+                    {
+                      backgroundColor:
+                        totalBudgetLimit === 0
+                          ? colors.elevatedSurface
+                          : overallPercentage >= 100
+                          ? colors.expenseMuted
+                          : overallPercentage >= 80
+                          ? colors.warningMuted
+                          : colors.successMuted,
+                    },
+                  ]}
+                >
                   <Text
                     variant="xs"
                     weight="extrabold"
                     style={{
                       color:
-                        overallPercentage >= 100
+                        totalBudgetLimit === 0
+                          ? colors.secondaryText
+                          : overallPercentage >= 100
                           ? colors.negative
                           : overallPercentage >= 80
                           ? colors.warning
                           : colors.positive,
+                      fontSize: 11,
                     }}
                   >
-                    {overallPercentage}% spent
+                    {totalBudgetLimit === 0 ? 'Not set' : `${overallPercentage}% spent`}
                   </Text>
                 </View>
               </View>
@@ -307,7 +330,7 @@ export default function BudgetsScreen() {
                 style={[
                   styles.track,
                   {
-                    backgroundColor: colors.elevatedSurface,
+                    backgroundColor: isDark ? colors.elevatedSurface : colors.background,
                   },
                 ]}
               >
@@ -317,7 +340,9 @@ export default function BudgetsScreen() {
                     {
                       width: `${Math.min(overallProgress * 100, 100)}%`,
                       backgroundColor:
-                        overallPercentage >= 100
+                        totalBudgetLimit === 0
+                          ? colors.borderLight
+                          : overallPercentage >= 100
                           ? colors.negative
                           : overallPercentage >= 80
                           ? colors.warning
@@ -372,10 +397,11 @@ export default function BudgetsScreen() {
               />
             ) : activeBudgets.length === 0 ? (
               <EmptyState
-                icon={<PieChart size={40} color={colors.primary} />}
+                illustration={<BudgetIllustration size={160} />}
                 title="No Budgets Yet"
-                description="Create monthly or category budgets to keep your everyday expenses under control."
+                description="Set monthly spending limits for categories to keep your everyday expenses under control."
                 actionTitle="Create Budget"
+                actionIcon={<Plus size={16} color={colors.onPrimary} />}
                 onAction={() => router.push('/budgets/add')}
               />
             ) : (
@@ -473,10 +499,11 @@ export default function BudgetsScreen() {
               />
             ) : activeGoals.length === 0 ? (
               <EmptyState
-                icon={<Target size={40} color={colors.secondary} />}
+                illustration={<SavingsGoalIllustration size={160} />}
                 title="No Savings Goals Yet"
-                description="Set aside money for your next big milestone, emergency fund, or vacation."
+                description="Set aside money for your next big milestone, emergency fund, dream gadget, or vacation."
                 actionTitle="Create First Goal"
+                actionIcon={<Plus size={16} color={colors.onPrimary} />}
                 onAction={() => router.push('/goals/add')}
               />
             ) : (

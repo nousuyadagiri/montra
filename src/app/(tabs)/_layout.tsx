@@ -188,23 +188,44 @@ export default function TabLayout() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`montra-rt-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public' },
-        (payload) => {
-          if (payload.table === 'profiles') {
-            refreshProfile();
-          } else {
-            bumpSync();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      // Remove any lingering or previous channels for this user to avoid callback attachment collisions
+      const existingChannels = supabase.getChannels().filter((ch) =>
+        ch.topic.includes(`montra-rt-${user.id}`)
+      );
+      for (const ch of existingChannels) {
+        supabase.removeChannel(ch);
+      }
+
+      // Create a dedicated channel with unique timestamp to guarantee a fresh, unsubscribed instance
+      channel = supabase
+        .channel(`montra-rt-${user.id}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public' },
+          (payload) => {
+            if (payload.table === 'profiles') {
+              refreshProfile();
+            } else {
+              bumpSync();
+            }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn('Realtime subscription error (non-fatal):', err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
     };
   }, [user?.id, refreshProfile, bumpSync]);
 

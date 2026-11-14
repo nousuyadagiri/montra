@@ -25,6 +25,7 @@ import {
   EmptyState,
   ErrorState,
   ListSkeleton,
+  SplitIllustration,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { formatCurrency } from '../../utils/currency';
@@ -195,31 +196,54 @@ export default function SplitScreen() {
         <View
           style={[
             styles.summaryCard,
-            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.borderLight,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: colors.background === '#FFFFFF' ? 0.05 : 0.22,
+              shadowRadius: 10,
+              elevation: 2,
+            },
           ]}
         >
           <View style={styles.summaryTop}>
-            <Text variant="xs" color="secondary" weight="semibold">
+            <Text variant="xs" color="secondary" weight="bold" style={styles.summaryLabel}>
               TOTAL SHARED BALANCE
             </Text>
-            <Text
-              variant="xs"
-              weight="bold"
-              style={{
-                color:
-                  netSplitBalance > 0
-                    ? colors.positive
-                    : netSplitBalance < 0
-                    ? colors.negative
-                    : colors.secondaryText,
-              }}
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    netSplitBalance > 0
+                      ? colors.successMuted
+                      : netSplitBalance < 0
+                      ? colors.expenseMuted
+                      : colors.elevatedSurface,
+                },
+              ]}
             >
-              {netSplitBalance > 0
-                ? `Overall +${formatCurrency(netSplitBalance, currency)}`
-                : netSplitBalance < 0
-                ? `Overall -${formatCurrency(Math.abs(netSplitBalance), currency)}`
-                : 'All Settled'}
-            </Text>
+              <Text
+                variant="xs"
+                weight="bold"
+                style={{
+                  color:
+                    netSplitBalance > 0
+                      ? colors.positive
+                      : netSplitBalance < 0
+                      ? colors.negative
+                      : colors.secondaryText,
+                  fontSize: 11,
+                }}
+              >
+                {netSplitBalance > 0
+                  ? `Overall +${formatCurrency(netSplitBalance, currency)}`
+                  : netSplitBalance < 0
+                  ? `Overall -${formatCurrency(Math.abs(netSplitBalance), currency)}`
+                  : 'All Settled'}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.balancesSplitRow}>
@@ -238,7 +262,7 @@ export default function SplitScreen() {
                   You are owed
                 </Text>
               </View>
-              <Text variant="lg" weight="bold" style={{ color: colors.positive, marginTop: 4 }}>
+              <Text variant="lg" weight="bold" style={{ color: colors.positive, marginTop: 6, fontSize: 18 }}>
                 {formatCurrency(totalOwed, currency)}
               </Text>
             </View>
@@ -260,7 +284,7 @@ export default function SplitScreen() {
                   You owe
                 </Text>
               </View>
-              <Text variant="lg" weight="bold" style={{ color: colors.negative, marginTop: 4 }}>
+              <Text variant="lg" weight="bold" style={{ color: colors.negative, marginTop: 6, fontSize: 18 }}>
                 {formatCurrency(totalOwing, currency)}
               </Text>
             </View>
@@ -291,10 +315,11 @@ export default function SplitScreen() {
           />
         ) : groupsList.length === 0 ? (
           <EmptyState
-            icon={<Users size={44} color={colors.primary} />}
+            illustration={<SplitIllustration size={160} />}
             title="No Shared Groups"
             description="Create a group to split flat rent, road trips, dinners, and events with friends without awkward math."
             actionTitle="Create Your First Group"
+            actionIcon={<Plus size={16} color={colors.onPrimary} />}
             onAction={() => router.push('/split/create-group')}
           />
         ) : (
@@ -343,10 +368,19 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   summaryCard: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: Spacing.md,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+  },
+  summaryLabel: {
+    letterSpacing: 0.8,
+    fontSize: 11,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
   },
   summaryTop: {
     flexDirection: 'row',

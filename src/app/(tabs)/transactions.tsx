@@ -28,6 +28,7 @@ import {
   EmptyState,
   ErrorState,
   ListSkeleton,
+  TransactionsIllustration,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { exportTransactionsToCSV } from '../../utils/csvExport';
@@ -123,6 +124,21 @@ export default function TransactionsScreen() {
   };
 
   const activeCategories = isDemo ? demoCategories : categories;
+
+  // Deduplicate and filter categories by active transaction type to avoid duplicate chips
+  const displayCategories = useMemo(() => {
+    let list = activeCategories;
+    if (selectedType) {
+      list = list.filter((c) => c.type === selectedType);
+    }
+    const seen = new Set<string>();
+    return list.filter((c) => {
+      const nameKey = (c.name || '').trim().toLowerCase();
+      if (!nameKey || seen.has(nameKey)) return false;
+      seen.add(nameKey);
+      return true;
+    });
+  }, [activeCategories, selectedType]);
 
   // Filter Transactions (supports demo & real client-side filtering consistently)
   const filteredTransactions = useMemo(() => {
@@ -303,7 +319,7 @@ export default function TransactionsScreen() {
         </View>
 
         {/* 4. CATEGORY HORIZONTAL FILTER */}
-        {activeCategories.length > 0 ? (
+        {displayCategories.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -334,7 +350,7 @@ export default function TransactionsScreen() {
               </Text>
             </TouchableOpacity>
 
-            {activeCategories.map((c) => {
+            {displayCategories.map((c) => {
               const isSelected = selectedCategory === c.id;
               return (
                 <TouchableOpacity
@@ -398,9 +414,11 @@ export default function TransactionsScreen() {
             />
           ) : (
             <EmptyState
+              illustration={<TransactionsIllustration size={160} />}
               title="No Transactions Found"
               description="No transactions match your current search or filters. Tap '+ Add' to record one."
               actionTitle="Add Transaction"
+              actionIcon={<Plus size={16} color={colors.onPrimary} />}
               onAction={() => router.push('/transactions/add')}
             />
           )
@@ -545,7 +563,7 @@ const styles = StyleSheet.create({
   groupCard: {
     paddingVertical: 2,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
   },
 });

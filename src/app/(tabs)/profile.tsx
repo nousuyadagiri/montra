@@ -208,14 +208,24 @@ export default function ProfileScreen() {
         <View
           style={[
             styles.heroCard,
-            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.borderLight,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: colors.background === '#FFFFFF' ? 0.05 : 0.22,
+              shadowRadius: 10,
+              elevation: 2,
+            },
           ]}
         >
           <View style={styles.heroTop}>
-            <View style={[styles.avatarCircle, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
-              <Text variant="lg" weight="extrabold" style={{ color: colors.primary }}>
-                {initials}
-              </Text>
+            <View style={[styles.avatarOuterRing, { borderColor: colors.primaryMuted, backgroundColor: colors.elevatedSurface }]}>
+              <View style={[styles.avatarCircle, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
+                <Text variant="lg" weight="extrabold" style={{ color: colors.primary, fontSize: 18 }}>
+                  {initials}
+                </Text>
+              </View>
             </View>
 
             <View style={styles.heroMeta}>
@@ -237,6 +247,12 @@ export default function ProfileScreen() {
                     { backgroundColor: isDemo ? colors.warningMuted : colors.successMuted },
                   ]}
                 >
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: isDemo ? colors.warning : colors.positive },
+                    ]}
+                  />
                   <Text
                     variant="xs"
                     weight="bold"
@@ -360,7 +376,7 @@ export default function ProfileScreen() {
                   onPress={() => setThemePalette(opt.id)}
                   activeOpacity={0.8}
                   style={[
-                    styles.palettePill,
+                    styles.paletteCard,
                     {
                       backgroundColor: selected ? colors.primaryMuted : colors.elevatedSurface,
                       borderColor: selected ? colors.primary : colors.borderLight,
@@ -377,14 +393,21 @@ export default function ProfileScreen() {
                       <View style={[styles.swatchInner, { backgroundColor: opt.accentColor }]} />
                     </View>
                   </View>
-                  <Text
-                    variant="xs"
-                    weight={selected ? 'bold' : 'medium'}
-                    style={{ color: selected ? colors.primary : colors.mainText, fontSize: 11.5 }}
-                  >
-                    {opt.name}
-                  </Text>
-                  {selected ? <Check size={12} color={colors.primary} strokeWidth={2.6} /> : null}
+                  <View style={styles.paletteLabelBox}>
+                    <Text
+                      variant="xs"
+                      weight={selected ? 'bold' : 'medium'}
+                      numberOfLines={1}
+                      style={{ color: selected ? colors.primary : colors.mainText, fontSize: 11.5 }}
+                    >
+                      {opt.name}
+                    </Text>
+                  </View>
+                  {selected ? (
+                    <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+                      <Check size={9} color={colors.onPrimary} strokeWidth={3} />
+                    </View>
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -683,9 +706,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   heroCard: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.md,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    padding: Spacing.md + 2,
     marginBottom: Spacing.lg,
     gap: Spacing.md,
   },
@@ -694,10 +717,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
+  avatarOuterRing: {
+    padding: 3,
+    borderRadius: 32,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
@@ -712,9 +742,17 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
   },
   editPillBtn: {
     width: 34,
@@ -749,9 +787,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   groupCard: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.sm,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    padding: Spacing.md,
     marginBottom: Spacing.lg,
   },
   modeSegmented: {
@@ -789,17 +827,29 @@ const styles = StyleSheet.create({
   paletteGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 8,
-    paddingTop: 2,
+    paddingTop: 4,
   },
-  palettePill: {
+  paletteCard: {
+    width: '48.5%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
+    paddingVertical: 9,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    gap: 7,
+  },
+  paletteLabelBox: {
+    flex: 1,
+  },
+  checkCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   swatchRing: {
     width: 20,
@@ -829,8 +879,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   menuIconBox: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',

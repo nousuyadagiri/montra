@@ -3,8 +3,8 @@ import { getErrorMessage } from '../src/utils/errors';
 import { toast, useToastStore } from '../src/store/toastStore';
 
 describe('Theme palettes', () => {
-  it('provides 9 curated minimalist themes including Electric Indigo, Oceanic Slate, and Aurora Teal with light and dark tokens', () => {
-    expect(THEME_OPTIONS).toHaveLength(9);
+  it('provides curated minimalist themes including Electric Indigo, Oceanic Slate, and Aurora Teal with light and dark tokens', () => {
+    expect(THEME_OPTIONS).toHaveLength(10);
     const names = THEME_OPTIONS.map((o) => o.name);
     expect(names).toEqual(
       expect.arrayContaining(['Electric Indigo', 'Oceanic Slate', 'Aurora Teal'])
