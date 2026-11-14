@@ -23,3 +23,4 @@ export * from './SearchBar';
 export * from './DateFilter';
 export * from './Toast';
 export * from './FintechIllustrations';
+export * from './DatePickerField';

@@ -25,9 +25,10 @@ import {
   DemoDataBadge,
   LoadingState,
   ErrorState,
+  TransactionsIllustration,
 } from '../../components/ui';
 import { CategoryProgressRow } from '../../components/charts/FinanceCharts';
-import { Spacing, BorderRadius } from '../../theme/tokens';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
 import { exportTransactionsToCSV } from '../../utils/csvExport';
 import { formatCurrency } from '../../utils/currency';
 import { toast } from '../../store/toastStore';
@@ -41,7 +42,7 @@ const PERIODS = [
 
 export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -248,12 +249,16 @@ export default function AnalyticsScreen() {
         <View
           style={[
             styles.summaryCard,
-            { backgroundColor: colors.surface, borderColor: colors.borderLight },
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.border : colors.borderLight,
+            },
+            !isDark ? Shadows.sm : undefined,
           ]}
         >
           <View style={styles.summaryTopRow}>
             <View>
-              <Text variant="xs" color="secondary" weight="semibold">
+              <Text variant="xs" color="secondary" weight="bold" style={styles.summarySubLabel}>
                 NET SAVINGS ({period.toUpperCase()})
               </Text>
               <Text
@@ -261,7 +266,8 @@ export default function AnalyticsScreen() {
                 weight="extrabold"
                 style={{
                   color: netSavings >= 0 ? colors.positive : colors.negative,
-                  marginTop: 2,
+                  marginTop: 3,
+                  fontSize: 24,
                 }}
               >
                 {netSavings >= 0 ? '+' : ''}
@@ -283,7 +289,7 @@ export default function AnalyticsScreen() {
               <Text
                 variant="xs"
                 weight="bold"
-                style={{ color: savingsRate >= 50 ? colors.positive : colors.warning }}
+                style={{ color: savingsRate >= 50 ? colors.positive : colors.warning, fontSize: 11.5 }}
               >
                 {savingsRate}% Saved
               </Text>
@@ -295,12 +301,14 @@ export default function AnalyticsScreen() {
           <View style={styles.inOutRow}>
             <View style={styles.inOutItem}>
               <View style={styles.iconDotRow}>
-                <ArrowDownLeft size={13} color={colors.positive} />
-                <Text variant="xs" color="secondary">
-                  Total Income
+                <View style={[styles.miniDot, { backgroundColor: colors.successMuted }]}>
+                  <ArrowDownLeft size={11} color={colors.positive} />
+                </View>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                  Income
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ color: colors.positive, marginTop: 2 }}>
+              <Text variant="sm" weight="bold" style={{ color: colors.positive, marginTop: 4 }}>
                 {formatCurrency(totalIncome, currency)}
               </Text>
             </View>
@@ -309,37 +317,87 @@ export default function AnalyticsScreen() {
 
             <View style={styles.inOutItem}>
               <View style={styles.iconDotRow}>
-                <ArrowUpRight size={13} color={colors.negative} />
-                <Text variant="xs" color="secondary">
-                  Total Expenses
+                <View style={[styles.miniDot, { backgroundColor: colors.expenseMuted }]}>
+                  <ArrowUpRight size={11} color={colors.negative} />
+                </View>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                  Expenses
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ color: colors.negative, marginTop: 2 }}>
+              <Text variant="sm" weight="bold" style={{ color: colors.negative, marginTop: 4 }}>
                 {formatCurrency(totalExpenses, currency)}
+              </Text>
+            </View>
+
+            <View style={[styles.vLine, { backgroundColor: colors.borderLight }]} />
+
+            <View style={styles.inOutItem}>
+              <View style={styles.iconDotRow}>
+                <View style={[styles.miniDot, { backgroundColor: colors.primaryMuted }]}>
+                  <TrendingUp size={11} color={colors.primary} />
+                </View>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                  Daily Avg
+                </Text>
+              </View>
+              <Text variant="sm" weight="bold" style={{ color: colors.mainText, marginTop: 4 }}>
+                {formatCurrency(totalExpenses / (period === 'week' ? 7 : period === 'month' ? 30 : 365), currency)}
               </Text>
             </View>
           </View>
         </View>
 
         {/* Income vs Expenses Chart */}
-        <Card elevated style={styles.sectionCard}>
+        <View
+          style={[
+            styles.sectionCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.border : colors.borderLight,
+            },
+            !isDark ? Shadows.sm : undefined,
+          ]}
+        >
           <View style={styles.sectionTitleRow}>
-            <TrendingUp size={17} color={colors.secondary} />
-            <Text variant="sm" weight="bold">
-              Income vs Expenses Trends
-            </Text>
+            <View style={[styles.sectionIconBadge, { backgroundColor: colors.primaryMuted }]}>
+              <TrendingUp size={15} color={colors.primary} />
+            </View>
+            <View>
+              <Text variant="sm" weight="bold">
+                Income vs Expenses Trends
+              </Text>
+              <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                Monthly comparison and savings trajectory
+              </Text>
+            </View>
           </View>
           <IncomeExpenseChart data={chartData} height={180} />
-        </Card>
+        </View>
 
         {/* Category Breakdown */}
         {categoryBreakdown.length > 0 ? (
-          <Card elevated style={styles.sectionCard}>
+          <View
+            style={[
+              styles.sectionCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
             <View style={styles.sectionTitleRow}>
-              <PieChart size={17} color={colors.primary} />
-              <Text variant="sm" weight="bold">
-                Category Spending Breakdown
-              </Text>
+              <View style={[styles.sectionIconBadge, { backgroundColor: colors.primaryMuted }]}>
+                <PieChart size={15} color={colors.primary} />
+              </View>
+              <View>
+                <Text variant="sm" weight="bold">
+                  Category Spending Breakdown
+                </Text>
+                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                  Ranked by top expenditure
+                </Text>
+              </View>
             </View>
 
             {categoryBreakdown.map((cat, idx) => (
@@ -351,7 +409,7 @@ export default function AnalyticsScreen() {
                 color={cat.color}
               />
             ))}
-          </Card>
+          </View>
         ) : null}
 
         {/* Financial Insights */}
@@ -359,7 +417,7 @@ export default function AnalyticsScreen() {
           <View style={styles.insightsHeader}>
             <Sparkles size={16} color={colors.primary} />
             <Text variant="sm" weight="bold">
-              Automated Insights
+              Automated Insights & Recommendations
             </Text>
           </View>
 
@@ -368,15 +426,19 @@ export default function AnalyticsScreen() {
               key={insight.id}
               style={[
                 styles.insightCard,
-                { backgroundColor: colors.surface, borderColor: colors.borderLight },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                },
+                !isDark ? Shadows.sm : undefined,
               ]}
             >
               <View style={styles.insightTop}>
-                <Text variant="xs" weight="bold" color="primary">
+                <Text variant="xs" weight="bold" color="primary" style={{ letterSpacing: 0.5 }}>
                   {insight.title.toUpperCase()}
                 </Text>
               </View>
-              <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 2 }}>
+              <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 4 }}>
                 {insight.description}
               </Text>
             </View>
@@ -416,9 +478,13 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
     marginBottom: Spacing.md,
+  },
+  summarySubLabel: {
+    letterSpacing: 0.8,
+    fontSize: 11,
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -444,7 +510,14 @@ const styles = StyleSheet.create({
   iconDotRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+  },
+  miniDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   vLine: {
     width: 1,
@@ -453,14 +526,22 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
     marginBottom: Spacing.md,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     marginBottom: Spacing.md,
+  },
+  sectionIconBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   insightsSection: {
     marginTop: Spacing.xs,

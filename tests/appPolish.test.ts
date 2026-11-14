@@ -7,7 +7,13 @@ describe('Theme palettes', () => {
     expect(THEME_OPTIONS).toHaveLength(10);
     const names = THEME_OPTIONS.map((o) => o.name);
     expect(names).toEqual(
-      expect.arrayContaining(['Electric Indigo', 'Oceanic Slate', 'Aurora Teal'])
+      expect.arrayContaining([
+        'Electric Indigo',
+        'Oceanic Slate',
+        'Aurora Teal',
+        'Claude Terracotta',
+        'Gemini Celestial',
+      ])
     );
     expect(new Set(THEME_OPTIONS.map((o) => o.id)).size).toBe(THEME_OPTIONS.length);
 

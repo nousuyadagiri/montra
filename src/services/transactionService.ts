@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Transaction, TransactionCategory, Account } from '../types/database';
 import { toMinorUnits } from '../utils/currency';
+import { deduplicateCategories } from '../utils/categories';
 import { authService } from './authService';
 import { useSyncStore } from '../store/syncStore';
 
@@ -243,7 +244,8 @@ export const transactionService = {
     const { data, error } = await query;
     if (error) throw error;
 
-    if (!data || data.length === 0) {
+    const rawData = data || [];
+    if (rawData.length === 0) {
       await authService.ensureDefaultAccountsAndCategories(userId);
       let retryQuery = supabase
         .from('transaction_categories')
@@ -254,10 +256,10 @@ export const transactionService = {
         retryQuery = retryQuery.eq('type', type);
       }
       const { data: refetched } = await retryQuery;
-      return refetched || [];
+      return deduplicateCategories(refetched || [], userId);
     }
 
-    return data || [];
+    return deduplicateCategories(rawData, userId);
   },
 
   async getAccounts(userId: string): Promise<Account[]> {

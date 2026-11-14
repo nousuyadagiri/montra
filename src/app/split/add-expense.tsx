@@ -24,6 +24,7 @@ import {
   Header,
   Card,
   LoadingState,
+  DatePickerField,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
@@ -271,12 +272,10 @@ export default function AddGroupExpenseScreen() {
           onChangeText={setTitle}
         />
 
-        <Input
-          label="Date (YYYY-MM-DD)"
-          placeholder="2026-11-09"
+        <DatePickerField
+          label="Expense Date"
           value={date}
-          onChangeText={setDate}
-          leftIcon={<Calendar size={18} color={colors.secondaryText} />}
+          onChange={setDate}
         />
 
         {/* Paid By Selector */}

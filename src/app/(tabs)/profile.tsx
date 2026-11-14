@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Check,
   X,
+  Calendar,
 } from 'lucide-react-native';
 import { useAppTheme, ThemeMode } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
@@ -279,10 +280,13 @@ export default function ProfileScreen() {
           {/* Compact 2-Col Financial Snapshot */}
           <View style={[styles.snapshotStrip, { backgroundColor: colors.elevatedSurface }]}>
             <TouchableOpacity style={styles.snapshotItem} onPress={openEditModal} activeOpacity={0.75}>
-              <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
-                Monthly Salary
-              </Text>
-              <Text variant="sm" weight="bold" style={{ marginTop: 2 }}>
+              <View style={styles.snapshotLabelRow}>
+                <Wallet size={12} color={colors.primary} />
+                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                  Monthly Salary
+                </Text>
+              </View>
+              <Text variant="sm" weight="bold" style={{ marginTop: 3 }}>
                 {formatCurrency(Number(activeProfile?.monthly_salary || 0), currency)}
               </Text>
             </TouchableOpacity>
@@ -290,10 +294,13 @@ export default function ProfileScreen() {
             <View style={[styles.snapshotDivider, { backgroundColor: colors.border }]} />
 
             <TouchableOpacity style={styles.snapshotItem} onPress={openEditModal} activeOpacity={0.75}>
-              <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
-                Salary Credit Day
-              </Text>
-              <Text variant="sm" weight="bold" style={{ marginTop: 2 }}>
+              <View style={styles.snapshotLabelRow}>
+                <Calendar size={12} color={colors.secondary} />
+                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                  Salary Credit Day
+                </Text>
+              </View>
+              <Text variant="sm" weight="bold" style={{ marginTop: 3 }}>
                 Day {activeProfile?.salary_date || 1} of month
               </Text>
             </TouchableOpacity>
@@ -770,6 +777,11 @@ const styles = StyleSheet.create({
   },
   snapshotItem: {
     flex: 1,
+  },
+  snapshotLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   snapshotDivider: {
     width: StyleSheet.hairlineWidth,

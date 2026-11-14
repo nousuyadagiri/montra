@@ -13,6 +13,7 @@ import { TransactionCategory, SupportedCurrency } from '../../types/database';
 import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
+import { deduplicateCategories } from '../../utils/categories';
 import { Check } from 'lucide-react-native';
 
 export default function AddBudgetScreen() {
@@ -46,7 +47,7 @@ export default function AddBudgetScreen() {
 
   useEffect(() => {
     if (isDemo) {
-      setCategories(demoCategories.filter((c) => c.type === 'expense'));
+      setCategories(deduplicateCategories(demoCategories.filter((c) => c.type === 'expense'), demoProfile.id));
       if (editId) {
         const existing = demoBudgets.find((b) => b.id === editId);
         if (existing) {
@@ -74,7 +75,7 @@ export default function AddBudgetScreen() {
       editId ? budgetService.getBudgetById(editId) : Promise.resolve(null),
     ])
       .then(([cats, existing]) => {
-        setCategories(cats);
+        setCategories(deduplicateCategories(cats, user.id));
         if (existing) {
           setName(existing.name);
           setTotalLimitStr(String(existing.total_limit));
@@ -88,7 +89,7 @@ export default function AddBudgetScreen() {
       })
       .catch((err) => toast.error(getErrorMessage(err, 'Failed to load budget options.')))
       .finally(() => setInitialLoading(false));
-  }, [user, isDemo, editId, demoCategories, demoBudgets]);
+  }, [user, isDemo, editId, demoCategories, demoBudgets, demoProfile.id]);
 
   const handleAllocationChange = (catId: string, val: string) => {
     setCategoryAllocations((prev) => ({

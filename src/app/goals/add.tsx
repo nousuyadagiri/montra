@@ -9,7 +9,7 @@ import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
 import { savingsService } from '../../services/savingsService';
 import { SupportedCurrency } from '../../types/database';
-import { Text, Input, Button, Header, Card, LoadingState } from '../../components/ui';
+import { Text, Input, Button, Header, Card, LoadingState, DatePickerField } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
 import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
 import { Calendar, Check } from 'lucide-react-native';
@@ -198,12 +198,10 @@ export default function AddGoalScreen() {
           onChangeText={setCurrentAmountStr}
         />
 
-        <Input
-          label="Target Date (YYYY-MM-DD)"
-          placeholder="2027-12-31"
+        <DatePickerField
+          label="Target Date"
           value={targetDate}
-          onChangeText={setTargetDate}
-          leftIcon={<Calendar size={18} color={colors.secondaryText} />}
+          onChange={setTargetDate}
         />
 
         {/* Category Selector */}

@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
 import { useSyncStore } from '../../store/syncStore';
 import { transactionService } from '../../services/transactionService';
+import { deduplicateCategories } from '../../utils/categories';
 import { Transaction, TransactionCategory, SupportedCurrency } from '../../types/database';
 import {
   Text,
@@ -93,7 +94,7 @@ export default function TransactionsScreen() {
       ]);
       hasLoadedRef.current = true;
       setRealTransactions(txns);
-      setCategories(cats);
+      setCategories(deduplicateCategories(cats, user.id));
     } catch (err: unknown) {
       const msg = getErrorMessage(err, 'Unable to load transactions.');
       setFetchError(msg);
@@ -127,18 +128,10 @@ export default function TransactionsScreen() {
 
   // Deduplicate and filter categories by active transaction type to avoid duplicate chips
   const displayCategories = useMemo(() => {
-    let list = activeCategories;
-    if (selectedType) {
-      list = list.filter((c) => c.type === selectedType);
-    }
-    const seen = new Set<string>();
-    return list.filter((c) => {
-      const nameKey = (c.name || '').trim().toLowerCase();
-      if (!nameKey || seen.has(nameKey)) return false;
-      seen.add(nameKey);
-      return true;
-    });
-  }, [activeCategories, selectedType]);
+    const unique = deduplicateCategories(activeCategories, user?.id);
+    if (!selectedType) return unique;
+    return unique.filter((c) => c.type === selectedType);
+  }, [activeCategories, selectedType, user?.id]);
 
   // Filter Transactions (supports demo & real client-side filtering consistently)
   const filteredTransactions = useMemo(() => {

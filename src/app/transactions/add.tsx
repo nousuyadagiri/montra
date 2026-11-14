@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,6 +9,15 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Plus,
+  ArrowDownLeft,
+  ArrowLeftRight,
+  Check,
+  CreditCard,
+  Wallet,
+  ArrowRight,
+} from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
@@ -21,12 +30,50 @@ import {
   Input,
   Button,
   Header,
-  Card,
   LoadingState,
+  DatePickerField,
 } from '../../components/ui';
-import { Spacing, BorderRadius } from '../../theme/tokens';
-import { CURRENCY_SYMBOLS, parseCurrencyInput } from '../../utils/currency';
-import { Check, CreditCard, Calendar } from 'lucide-react-native';
+import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
+import { CURRENCY_SYMBOLS, parseCurrencyInput, formatCurrency } from '../../utils/currency';
+import { deduplicateCategories } from '../../utils/categories';
+
+const TYPE_CONFIG = {
+  expense: {
+    label: 'Expense',
+    color: '#E11D48',
+    darkColor: '#FB7185',
+    bg: '#FFF1F2',
+    darkBg: 'rgba(244, 63, 94, 0.14)',
+    border: '#FECDD3',
+    darkBorder: 'rgba(244, 63, 94, 0.35)',
+    Icon: Plus,
+    placeholder: 'e.g. Groceries, Fuel, Dining',
+  },
+  income: {
+    label: 'Income',
+    color: '#059669',
+    darkColor: '#34D399',
+    bg: '#ECFDF5',
+    darkBg: 'rgba(16, 185, 129, 0.14)',
+    border: '#A7F3D0',
+    darkBorder: 'rgba(16, 185, 129, 0.35)',
+    Icon: ArrowDownLeft,
+    placeholder: 'e.g. Monthly Salary, Freelance, Dividend',
+  },
+  transfer: {
+    label: 'Transfer',
+    color: '#4F46E5',
+    darkColor: '#818CF8',
+    bg: '#EEF2FF',
+    darkBg: 'rgba(99, 102, 241, 0.14)',
+    border: '#C7D2FE',
+    darkBorder: 'rgba(99, 102, 241, 0.35)',
+    Icon: ArrowLeftRight,
+    placeholder: 'e.g. Savings transfer, Rent payout',
+  },
+};
+
+const AMOUNT_PRESETS = [100, 500, 1000, 5000];
 
 export default function AddTransactionScreen() {
   const router = useRouter();
@@ -34,7 +81,7 @@ export default function AddTransactionScreen() {
   const editId = params.editId;
   const isEditing = Boolean(editId);
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
 
@@ -63,6 +110,11 @@ export default function AddTransactionScreen() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(!isDemo);
+
+  const activeTypeCfg = TYPE_CONFIG[type];
+  const activeColor = isDark ? activeTypeCfg.darkColor : activeTypeCfg.color;
+  const activeBg = isDark ? activeTypeCfg.darkBg : activeTypeCfg.bg;
+  const activeBorder = isDark ? activeTypeCfg.darkBorder : activeTypeCfg.border;
 
   // Prefill existing transaction in Edit mode
   useEffect(() => {
@@ -103,13 +155,15 @@ export default function AddTransactionScreen() {
   // Load categories & accounts for either Demo or Real mode
   useEffect(() => {
     if (isDemo) {
-      const filteredCats =
+      const filteredCats = deduplicateCategories(
         type === 'transfer'
           ? demoCategories
-          : demoCategories.filter((c) => c.type === type);
+          : demoCategories.filter((c) => c.type === type),
+        demoProfile.id
+      );
       setCategories(filteredCats);
-      if (filteredCats.length > 0 && !filteredCats.some((c) => c.id === selectedCategoryId)) {
-        setSelectedCategoryId(filteredCats[0].id);
+      if (filteredCats.length > 0) {
+        setSelectedCategoryId((prev) => (prev && filteredCats.some((c) => c.id === prev) ? prev : filteredCats[0].id));
       }
       setAccounts(demoAccounts);
       const defaultAcc = demoAccounts.find((a) => a.is_default) || demoAccounts[0];
@@ -132,9 +186,10 @@ export default function AddTransactionScreen() {
       transactionService.getAccounts(user.id),
     ])
       .then(([cats, accs]) => {
-        setCategories(cats);
-        if (cats.length > 0 && !cats.some((c) => c.id === selectedCategoryId)) {
-          setSelectedCategoryId(cats[0].id);
+        const uniqueCats = deduplicateCategories(cats, user.id);
+        setCategories(uniqueCats);
+        if (uniqueCats.length > 0) {
+          setSelectedCategoryId((prev) => (prev && uniqueCats.some((c) => c.id === prev) ? prev : uniqueCats[0].id));
         }
         setAccounts(accs);
         const defaultAcc = accs.find((a) => a.is_default) || accs[0];
@@ -147,7 +202,16 @@ export default function AddTransactionScreen() {
       })
       .catch((err) => toast.error(getErrorMessage(err, 'Unable to load categories and accounts.')))
       .finally(() => setInitialLoading(false));
-  }, [user, isDemo, type, demoCategories, demoAccounts, selectedCategoryId]);
+  }, [user, isDemo, type, demoCategories, demoAccounts, demoProfile.id]);
+
+  const displayCategories = useMemo(() => {
+    return deduplicateCategories(categories, user?.id);
+  }, [categories, user?.id]);
+
+  const handleAddPreset = (increment: number) => {
+    const current = parseCurrencyInput(amountStr) || 0;
+    setAmountStr(String(current + increment));
+  };
 
   const handleSave = async () => {
     const amount = parseCurrencyInput(amountStr);
@@ -226,267 +290,364 @@ export default function AddTransactionScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <Header
-        title={headerTitle}
-        showBack
-      />
+      <Header title={headerTitle} showBack />
 
       {initialLoading ? (
         <LoadingState message="Loading accounts & categories..." />
       ) : (
         <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Type Toggle Tabs */}
-        <View style={[styles.typeToggleRow, { backgroundColor: colors.surface }]}>
-          {(['expense', 'income', 'transfer'] as const).map((t) => {
-            const isSelected = type === t;
-            return (
-              <TouchableOpacity
-                key={t}
-                onPress={() => setType(t)}
-                style={[
-                  styles.typeTab,
-                  {
-                    backgroundColor: isSelected ? colors.primary : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  variant="sm"
-                  weight={isSelected ? 'bold' : 'medium'}
-                  style={{
-                    color: isSelected ? colors.onPrimary : colors.secondaryText,
-                    textTransform: 'capitalize',
-                  }}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing['3xl'] },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 1. SEGMENTED TRANSACTION TYPE SELECTOR */}
+          <View
+            style={[
+              styles.typeSegmentedCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            {(['expense', 'income', 'transfer'] as const).map((t) => {
+              const isSelected = type === t;
+              const cfg = TYPE_CONFIG[t];
+              const TabIcon = cfg.Icon;
+              const tabColor = isDark ? cfg.darkColor : cfg.color;
+              const tabBg = isDark ? cfg.darkBg : cfg.bg;
+
+              return (
+                <TouchableOpacity
+                  key={t}
+                  onPress={() => setType(t)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.typeTab,
+                    isSelected && {
+                      backgroundColor: tabBg,
+                      borderColor: tabColor,
+                      borderWidth: 1.5,
+                    },
+                  ]}
                 >
-                  {t}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Big Amount Card */}
-        <Card elevated style={styles.amountCard}>
-          <Text variant="xs" color="secondary" weight="semibold">
-            AMOUNT
-          </Text>
-          <View style={styles.amountInputRow}>
-            <Text variant="3xl" weight="bold" color="primary">
-              {currencySymbol}
-            </Text>
-            <Input
-              placeholder="0.00"
-              keyboardType="decimal-pad"
-              value={amountStr}
-              onChangeText={setAmountStr}
-              inputStyle={styles.bigAmountInput}
-              containerStyle={styles.amountContainer}
-            />
-          </View>
-        </Card>
-
-        {/* Details Form */}
-        <Input
-          label="Transaction Title"
-          placeholder="e.g. Grocery Store, Client Payment"
-          value={title}
-          onChangeText={setTitle}
-        />
-
-        <Input
-          label="Date (YYYY-MM-DD)"
-          placeholder="2026-11-09"
-          value={date}
-          onChangeText={setDate}
-          leftIcon={<Calendar size={18} color={colors.secondaryText} />}
-        />
-
-        {/* Account Selector */}
-        {accounts.length > 0 ? (
-          <View style={styles.sectionWrapper}>
-            <Text variant="sm" weight="medium" color="secondary" style={styles.sectionLabel}>
-              {type === 'transfer' ? 'From Account' : 'Account'}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
-              {accounts.map((acc) => {
-                const isSelected = selectedAccountId === acc.id;
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    onPress={() => setSelectedAccountId(acc.id)}
-                    style={[
-                      styles.choicePill,
-                      {
-                        backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
-                      },
-                    ]}
+                  <TabIcon
+                    size={16}
+                    color={isSelected ? tabColor : colors.secondaryText}
+                    strokeWidth={isSelected ? 2.6 : 2}
+                  />
+                  <Text
+                    variant="xs"
+                    weight={isSelected ? 'bold' : 'medium'}
+                    style={{
+                      color: isSelected ? tabColor : colors.secondaryText,
+                      marginLeft: 5,
+                      fontSize: 12,
+                    }}
                   >
-                    <CreditCard
-                      size={16}
-                      color={isSelected ? colors.primary : colors.secondaryText}
-                    />
-                    <Text
-                      variant="xs"
-                      weight={isSelected ? 'bold' : 'regular'}
-                      style={{
-                        color: isSelected ? colors.primary : colors.mainText,
-                        marginLeft: 6,
-                      }}
-                    >
-                      {acc.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                    {cfg.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-        ) : null}
 
-        {/* Transfer Destination Account */}
-        {type === 'transfer' && accounts.length > 1 ? (
-          <View style={styles.sectionWrapper}>
-            <Text variant="sm" weight="medium" color="secondary" style={styles.sectionLabel}>
-              To Account
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillScroll}>
-              {accounts
-                .filter((a) => a.id !== selectedAccountId)
-                .map((acc) => {
-                  const isSelected = selectedToAccountId === acc.id;
+          {/* 2. HERO AMOUNT CARD */}
+          <View
+            style={[
+              styles.heroAmountCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: activeBorder,
+              },
+              !isDark ? Shadows.md : undefined,
+            ]}
+          >
+            <View style={styles.amountTopMeta}>
+              <View style={[styles.typeBadge, { backgroundColor: activeBg }]}>
+                <Text variant="xs" weight="bold" style={{ color: activeColor, fontSize: 10.5 }}>
+                  {activeTypeCfg.label.toUpperCase()} AMOUNT
+                </Text>
+              </View>
+              <Text variant="xs" color="tertiary">
+                {activeCurrency}
+              </Text>
+            </View>
+
+            <View style={styles.amountInputRow}>
+              <Text variant="3xl" weight="bold" style={{ color: activeColor, marginRight: 6 }}>
+                {currencySymbol}
+              </Text>
+              <Input
+                placeholder="0"
+                keyboardType="decimal-pad"
+                value={amountStr}
+                onChangeText={setAmountStr}
+                inputStyle={{ ...styles.bigAmountInput, color: colors.mainText }}
+                containerStyle={styles.amountContainer}
+                autoFocus={!isEditing}
+              />
+            </View>
+
+            {/* Quick Presets */}
+            <View style={styles.presetsRow}>
+              {AMOUNT_PRESETS.map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => handleAddPreset(p)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.presetPill,
+                    {
+                      backgroundColor: colors.elevatedSurface,
+                      borderColor: colors.borderLight,
+                    },
+                  ]}
+                >
+                  <Text variant="xs" weight="bold" style={{ color: colors.mainText, fontSize: 11 }}>
+                    +{currencySymbol}{p >= 1000 ? `${p / 1000}k` : p}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* 3. TRANSACTION TITLE */}
+          <Input
+            label="Transaction Title"
+            placeholder={activeTypeCfg.placeholder}
+            value={title}
+            onChangeText={setTitle}
+          />
+
+          {/* 4. INTERACTIVE DATE PICKER */}
+          <DatePickerField
+            label="Date of Transaction"
+            value={date}
+            onChange={setDate}
+            helperText="Tap to pick any date or quick choose Today / Yesterday"
+          />
+
+          {/* 5. ACCOUNT SELECTOR */}
+          {accounts.length > 0 ? (
+            <View style={styles.sectionWrapper}>
+              <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+                {type === 'transfer' ? 'FROM ACCOUNT' : 'PAY FROM ACCOUNT'}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalPillScroll}>
+                {accounts.map((acc) => {
+                  const isSelected = selectedAccountId === acc.id;
                   return (
                     <TouchableOpacity
                       key={acc.id}
-                      onPress={() => setSelectedToAccountId(acc.id)}
+                      onPress={() => setSelectedAccountId(acc.id)}
+                      activeOpacity={0.75}
                       style={[
-                        styles.choicePill,
+                        styles.accountCard,
                         {
-                          backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                          borderColor: isSelected ? colors.primary : colors.border,
+                          backgroundColor: isSelected ? activeBg : colors.surface,
+                          borderColor: isSelected ? activeColor : colors.borderLight,
                         },
                       ]}
                     >
-                      <CreditCard
-                        size={16}
-                        color={isSelected ? colors.primary : colors.secondaryText}
-                      />
-                      <Text
-                        variant="xs"
-                        weight={isSelected ? 'bold' : 'regular'}
-                        style={{
-                          color: isSelected ? colors.primary : colors.mainText,
-                          marginLeft: 6,
-                        }}
+                      <View
+                        style={[
+                          styles.accountIconBox,
+                          { backgroundColor: isSelected ? colors.surface : colors.elevatedSurface },
+                        ]}
                       >
-                        {acc.name}
-                      </Text>
+                        <CreditCard
+                          size={15}
+                          color={isSelected ? activeColor : colors.secondaryText}
+                        />
+                      </View>
+                      <View>
+                        <Text
+                          variant="xs"
+                          weight="bold"
+                          numberOfLines={1}
+                          style={{ color: isSelected ? activeColor : colors.mainText }}
+                        >
+                          {acc.name}
+                        </Text>
+                        <Text variant="xs" color="tertiary" style={{ fontSize: 10 }}>
+                          {formatCurrency(acc.balance || 0, activeCurrency)}
+                        </Text>
+                      </View>
+                      {isSelected ? (
+                        <Check size={14} color={activeColor} strokeWidth={2.8} style={{ marginLeft: 6 }} />
+                      ) : null}
                     </TouchableOpacity>
                   );
                 })}
-            </ScrollView>
-          </View>
-        ) : null}
+              </ScrollView>
+            </View>
+          ) : null}
 
-        {/* Categories (for Income & Expense) */}
-        {type !== 'transfer' && categories.length > 0 ? (
+          {/* 6. TRANSFER DESTINATION ACCOUNT */}
+          {type === 'transfer' && accounts.length > 1 ? (
+            <View style={styles.sectionWrapper}>
+              <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+                TO DESTINATION ACCOUNT
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalPillScroll}>
+                {accounts
+                  .filter((a) => a.id !== selectedAccountId)
+                  .map((acc) => {
+                    const isSelected = selectedToAccountId === acc.id;
+                    return (
+                      <TouchableOpacity
+                        key={acc.id}
+                        onPress={() => setSelectedToAccountId(acc.id)}
+                        activeOpacity={0.75}
+                        style={[
+                          styles.accountCard,
+                          {
+                            backgroundColor: isSelected ? activeBg : colors.surface,
+                            borderColor: isSelected ? activeColor : colors.borderLight,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.accountIconBox,
+                            { backgroundColor: isSelected ? colors.surface : colors.elevatedSurface },
+                          ]}
+                        >
+                          <Wallet
+                            size={15}
+                            color={isSelected ? activeColor : colors.secondaryText}
+                          />
+                        </View>
+                        <View>
+                          <Text
+                            variant="xs"
+                            weight="bold"
+                            numberOfLines={1}
+                            style={{ color: isSelected ? activeColor : colors.mainText }}
+                          >
+                            {acc.name}
+                          </Text>
+                          <Text variant="xs" color="tertiary" style={{ fontSize: 10 }}>
+                            {formatCurrency(acc.balance || 0, activeCurrency)}
+                          </Text>
+                        </View>
+                        {isSelected ? (
+                          <Check size={14} color={activeColor} strokeWidth={2.8} style={{ marginLeft: 6 }} />
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {/* 7. CATEGORIES (For Income & Expense) */}
+          {type !== 'transfer' && displayCategories.length > 0 ? (
+            <View style={styles.sectionWrapper}>
+              <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+                CATEGORY
+              </Text>
+              <View style={styles.categoriesGrid}>
+                {displayCategories.map((c) => {
+                  const isSelected = selectedCategoryId === c.id;
+                  const dotColor = c.color || activeColor;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      onPress={() => setSelectedCategoryId(c.id)}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.categoryTile,
+                        {
+                          backgroundColor: isSelected ? activeBg : colors.surface,
+                          borderColor: isSelected ? activeColor : colors.borderLight,
+                        },
+                      ]}
+                    >
+                      <View style={[styles.catColorDot, { backgroundColor: dotColor }]} />
+                      <Text
+                        variant="xs"
+                        weight={isSelected ? 'bold' : 'medium'}
+                        numberOfLines={1}
+                        style={{
+                          color: isSelected ? activeColor : colors.mainText,
+                          fontSize: 11.5,
+                        }}
+                      >
+                        {c.name}
+                      </Text>
+                      {isSelected ? (
+                        <Check size={11} color={activeColor} strokeWidth={2.8} style={{ marginLeft: 4 }} />
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {/* 8. PAYMENT METHOD SELECTOR */}
           <View style={styles.sectionWrapper}>
-            <Text variant="sm" weight="medium" color="secondary" style={styles.sectionLabel}>
-              Category
+            <Text variant="xs" weight="bold" color="secondary" style={styles.sectionHeading}>
+              PAYMENT METHOD
             </Text>
-            <View style={styles.categoriesGrid}>
-              {categories.map((c) => {
-                const isSelected = selectedCategoryId === c.id;
+            <View style={styles.paymentMethodsRow}>
+              {['UPI', 'Card', 'NetBanking', 'Cash'].map((m) => {
+                const isSelected = paymentMethod === m;
                 return (
                   <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setSelectedCategoryId(c.id)}
+                    key={m}
+                    onPress={() => setPaymentMethod(m)}
+                    activeOpacity={0.75}
                     style={[
-                      styles.categoryTile,
+                      styles.methodPill,
                       {
-                        backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: isSelected ? activeBg : colors.surface,
+                        borderColor: isSelected ? activeColor : colors.borderLight,
                       },
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.catColorDot,
-                        { backgroundColor: c.color || colors.primary },
-                      ]}
-                    />
                     <Text
                       variant="xs"
-                      weight={isSelected ? 'bold' : 'regular'}
-                      style={{ color: isSelected ? colors.primary : colors.mainText }}
-                      numberOfLines={1}
+                      weight={isSelected ? 'bold' : 'medium'}
+                      style={{
+                        color: isSelected ? activeColor : colors.mainText,
+                        fontSize: 11.5,
+                      }}
                     >
-                      {c.name}
+                      {m}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
-        ) : null}
 
-        {/* Payment Method Selector */}
-        <View style={styles.sectionWrapper}>
-          <Text variant="sm" weight="medium" color="secondary" style={styles.sectionLabel}>
-            Payment Method
-          </Text>
-          <View style={styles.paymentMethodsRow}>
-            {['UPI', 'Card', 'NetBanking', 'Cash'].map((m) => {
-              const isSelected = paymentMethod === m;
-              return (
-                <TouchableOpacity
-                  key={m}
-                  onPress={() => setPaymentMethod(m)}
-                  style={[
-                    styles.methodPill,
-                    {
-                      backgroundColor: isSelected ? colors.primaryMuted : colors.surface,
-                      borderColor: isSelected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="xs"
-                    weight={isSelected ? 'bold' : 'regular'}
-                    style={{ color: isSelected ? colors.primary : colors.mainText }}
-                  >
-                    {m}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+          {/* 9. OPTIONAL NOTES */}
+          <Input
+            label="Optional Notes"
+            placeholder="Additional context or remarks..."
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={2}
+          />
 
-        <Input
-          label="Optional Notes"
-          placeholder="Additional context or remarks..."
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={3}
-        />
-
-        <Button
-          title="Save Transaction"
-          variant="primary"
-          size="lg"
-          loading={loading}
-          onPress={handleSave}
-          leftIcon={<Check size={20} color={colors.onPrimary} />}
-          buttonStyle={{ marginTop: Spacing.lg }}
-        />
+          {/* 10. ACTION SUBMIT BUTTON */}
+          <Button
+            title={`Save ${activeTypeCfg.label}`}
+            variant="primary"
+            size="lg"
+            loading={loading}
+            onPress={handleSave}
+            rightIcon={<ArrowRight size={18} color={colors.onPrimary} />}
+            buttonStyle={{ ...styles.saveBtn, backgroundColor: activeColor }}
+          />
         </ScrollView>
       )}
     </KeyboardAvoidingView>
@@ -501,68 +662,109 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
   },
-  typeToggleRow: {
+  typeSegmentedCard: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     padding: 4,
-    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
   },
   typeTab: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: BorderRadius.md,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  amountCard: {
+  heroAmountCard: {
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1.5,
+    marginBottom: Spacing.md,
+  },
+  amountTopMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 6,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
   },
   amountInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    justifyContent: 'center',
+    marginVertical: 4,
   },
   amountContainer: {
     marginBottom: 0,
-    width: 200,
+    width: 210,
   },
   bigAmountInput: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 34,
+    fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: Spacing.sm,
+  },
+  presetPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
   },
   sectionWrapper: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  sectionLabel: {
-    marginBottom: Spacing.xs,
+  sectionHeading: {
+    letterSpacing: 0.9,
+    marginBottom: 8,
+    marginLeft: 2,
+    fontSize: 10.5,
   },
-  pillScroll: {
+  horizontalPillScroll: {
     flexDirection: 'row',
   },
-  choicePill: {
+  accountCard: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
     marginRight: Spacing.sm,
+    gap: 8,
+  },
+  accountIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   categoriesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.xs,
+    gap: 8,
   },
   categoryTile: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 7,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
   },
   catColorDot: {
     width: 8,
@@ -572,15 +774,18 @@ const styles = StyleSheet.create({
   },
   paymentMethodsRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: 8,
   },
   methodPill: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+  },
+  saveBtn: {
+    marginTop: Spacing.lg,
+    borderRadius: BorderRadius.xl,
   },
 });
-
