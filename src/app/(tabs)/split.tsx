@@ -15,6 +15,7 @@ import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
 import { useSyncStore } from '../../store/syncStore';
+import { useTabBarScroll, useTabBarStore } from '../../store/tabBarStore';
 import { splitService } from '../../services/splitService';
 import { ExpenseGroup, SupportedCurrency } from '../../types/database';
 import {
@@ -56,6 +57,7 @@ export default function SplitScreen() {
   const [realOwing, setRealOwing] = useState(0);
   const [groupBalancesMap, setGroupBalancesMap] = useState<Record<string, number>>({});
   const hasLoadedRef = useRef(false);
+  const tabBarScroll = useTabBarScroll();
 
   const isDemo = !user;
 
@@ -112,6 +114,7 @@ export default function SplitScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchGroups();
+      useTabBarStore.getState().setIsVisible(true);
     }, [fetchGroups])
   );
 
@@ -161,9 +164,10 @@ export default function SplitScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
-            paddingBottom: insets.bottom + 110,
+            paddingBottom: insets.bottom + 28,
           },
         ]}
+        {...tabBarScroll}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

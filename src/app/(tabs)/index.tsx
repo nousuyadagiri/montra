@@ -46,6 +46,7 @@ import { useAuthStore } from "../../store/authStore";
 import { useDemoStore } from "../../store/demoStore";
 import { useSyncStore } from "../../store/syncStore";
 import { useAppTheme } from "../../store/themeStore";
+import { useTabBarScroll, useTabBarStore } from "../../store/tabBarStore";
 import { toast } from "../../store/toastStore";
 import { BorderRadius, Shadows, Spacing } from "../../theme/tokens";
 import { SupportedCurrency } from "../../types/database";
@@ -73,6 +74,7 @@ export default function HomeScreen() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const hasLoadedRef = useRef(false);
+  const tabBarScroll = useTabBarScroll();
 
   const isDemo = !user;
 
@@ -106,6 +108,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchDashboard();
+      useTabBarStore.getState().setIsVisible(true);
     }, [fetchDashboard]),
   );
 
@@ -219,9 +222,10 @@ export default function HomeScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === "android" ? 12 : 8),
-            paddingBottom: insets.bottom + 85,
+            paddingBottom: insets.bottom + 28,
           },
         ]}
+        {...tabBarScroll}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

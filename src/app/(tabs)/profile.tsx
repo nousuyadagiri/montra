@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,7 +10,7 @@ import {
   Platform,
   StatusBar as RNStatusBar,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Pencil,
@@ -33,6 +33,7 @@ import {
 import { useAppTheme, ThemeMode } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
+import { useTabBarScroll, useTabBarStore } from '../../store/tabBarStore';
 import { authService } from '../../services/authService';
 import { THEME_OPTIONS } from '../../theme/colors';
 import {
@@ -60,6 +61,13 @@ export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isDark, mode, themePalette, setMode, setThemePalette } = useAppTheme();
+  const tabBarScroll = useTabBarScroll();
+
+  useFocusEffect(
+    useCallback(() => {
+      useTabBarStore.getState().setIsVisible(true);
+    }, [])
+  );
   const activeThemeOption = THEME_OPTIONS.find((t) => t.id === themePalette) ?? THEME_OPTIONS[0];
 
   const user = useAuthStore((s) => s.user);
@@ -190,9 +198,10 @@ export default function ProfileScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10),
-            paddingBottom: insets.bottom + 110,
+            paddingBottom: insets.bottom + 28,
           },
         ]}
+        {...tabBarScroll}
         showsVerticalScrollIndicator={false}
       >
         {/* 1. HEADER */}

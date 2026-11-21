@@ -26,6 +26,7 @@ import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
 import { useSyncStore } from '../../store/syncStore';
+import { useTabBarScroll, useTabBarStore } from '../../store/tabBarStore';
 import { budgetService, BudgetWithSpending } from '../../services/budgetService';
 import { savingsService } from '../../services/savingsService';
 import { SavingsGoal, SupportedCurrency } from '../../types/database';
@@ -70,6 +71,7 @@ export default function BudgetsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
+  const tabBarScroll = useTabBarScroll();
 
   const isDemo = !user;
 
@@ -104,6 +106,7 @@ export default function BudgetsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchData();
+      useTabBarStore.getState().setIsVisible(true);
     }, [fetchData])
   );
 
@@ -194,9 +197,10 @@ export default function BudgetsScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
-            paddingBottom: insets.bottom + 110,
+            paddingBottom: insets.bottom + 28,
           },
         ]}
+        {...tabBarScroll}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

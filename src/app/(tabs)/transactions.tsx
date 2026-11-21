@@ -16,6 +16,7 @@ import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
 import { useSyncStore } from '../../store/syncStore';
+import { useTabBarScroll, useTabBarStore } from '../../store/tabBarStore';
 import { transactionService } from '../../services/transactionService';
 import { deduplicateCategories } from '../../utils/categories';
 import { Transaction, TransactionCategory, SupportedCurrency } from '../../types/database';
@@ -85,6 +86,7 @@ export default function TransactionsScreen() {
   const [selectedType, setSelectedType] = useState<string | undefined>(undefined);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
   const [selectedDateFilter] = useState<DateFilterOption>('all');
+  const tabBarScroll = useTabBarScroll();
 
   const fetchTransactions = useCallback(async () => {
     if (!user) {
@@ -121,6 +123,7 @@ export default function TransactionsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTransactions();
+      useTabBarStore.getState().setIsVisible(true);
     }, [fetchTransactions])
   );
 
@@ -429,9 +432,10 @@ export default function TransactionsScreen() {
       <FlatList
         data={groupedTransactions}
         keyExtractor={(group) => group.dateKey}
+        {...tabBarScroll}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: insets.bottom + 110 },
+          { paddingBottom: insets.bottom + 28 },
         ]}
         refreshControl={
           <RefreshControl
