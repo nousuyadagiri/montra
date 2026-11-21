@@ -51,15 +51,14 @@ export default function ResetPasswordScreen() {
     }
   };
 
-  const inputSurface = isDark ? colors.elevatedSurface : colors.background;
+  const inputSurface = isDark ? colors.elevatedSurface : '#F4F5FA';
 
   return (
     <AuthShell
       eyebrow="ACCOUNT SECURITY"
       title="Set new password"
       subtitle="Choose a strong password to protect your Montra account."
-      icon={<ShieldCheck size={14} color={colors.accent} />}
-      imageSource={require('../../../assets/images/auth/auth-security.jpg')}
+      illustrationSource={require('../../../assets/images/auth/forgot_password.png')}
       compactSpacing={isCompactHeight}
       errorMessage={errorMessage}
     >
@@ -70,6 +69,7 @@ export default function ResetPasswordScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="New Password"
+              labelIcon={<Lock size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="Minimum 6 characters"
               isPassword
               compact={isCompactHeight}
@@ -79,7 +79,7 @@ export default function ResetPasswordScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.password?.message}
-              leftIcon={<Lock size={17} color={colors.secondaryText} />}
+              leftIcon={<Lock size={16} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -90,6 +90,7 @@ export default function ResetPasswordScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Confirm New Password"
+              labelIcon={<ShieldCheck size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="Re-enter new password"
               isPassword
               compact={isCompactHeight}
@@ -99,7 +100,7 @@ export default function ResetPasswordScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.confirmPassword?.message}
-              leftIcon={<ShieldCheck size={17} color={colors.secondaryText} />}
+              leftIcon={<ShieldCheck size={16} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -107,11 +108,18 @@ export default function ResetPasswordScreen() {
         <Button
           title="Update Password"
           variant="primary"
-          size={isCompactHeight ? 'md' : 'lg'}
+          size="lg"
           loading={loading}
           onPress={handleSubmit(onSubmit)}
-          leftIcon={<Check size={18} color={colors.onPrimary} />}
-          buttonStyle={styles.submitButton}
+          leftIcon={<Check size={18} color={colors.onPrimary} strokeWidth={2.4} />}
+          buttonStyle={[
+            styles.submitButton,
+            {
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+            },
+          ]}
+          textStyle={{ color: colors.onPrimary }}
         />
       </View>
     </AuthShell>
@@ -123,6 +131,14 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   submitButton: {
-    marginTop: Spacing.xs + 2,
+    marginTop: Spacing.sm,
+    backgroundColor: '#5B4DFC',
+    borderRadius: 26,
+    height: 52,
+    shadowColor: '#5B4DFC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
   },
 });

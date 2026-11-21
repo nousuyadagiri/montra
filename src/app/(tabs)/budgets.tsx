@@ -42,6 +42,7 @@ import {
   SavingsGoalIllustration,
 } from '../../components/ui';
 import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
+import { NEO_ACCENTS } from '../../theme/colors';
 import { formatCurrency } from '../../utils/currency';
 import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
@@ -49,7 +50,8 @@ import { getErrorMessage } from '../../utils/errors';
 export default function BudgetsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors, isDark, themePalette } = useAppTheme();
+  const isNeo = themePalette === 'neo-pistachio';
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -192,7 +194,7 @@ export default function BudgetsScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
-            paddingBottom: Spacing.xl,
+            paddingBottom: insets.bottom + 110,
           },
         ]}
         refreshControl={
@@ -226,11 +228,14 @@ export default function BudgetsScreen() {
           </View>
         </View>
 
-        {/* 2. TAB SWITCHER */}
+        {/* 2. TAB SWITCHER (Rounded Pill Capsules) */}
         <View
           style={[
             styles.tabSwitcher,
-            { backgroundColor: colors.elevatedSurface, borderColor: colors.borderLight },
+            {
+              backgroundColor: isNeo ? '#1C1C1E' : colors.elevatedSurface,
+              borderColor: isNeo ? '#2C2C32' : colors.borderLight,
+            },
           ]}
         >
           <TouchableOpacity
@@ -239,10 +244,10 @@ export default function BudgetsScreen() {
               activeTab === 'budgets' && [
                 styles.tabBtnActive,
                 {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.borderLight,
+                  backgroundColor: isNeo ? (isDark ? NEO_ACCENTS.pistachio : colors.primary) : colors.surface,
+                  borderColor: isNeo ? 'transparent' : colors.borderLight,
                 },
-                !isDark ? Shadows.sm : undefined,
+                !isDark && !isNeo ? Shadows.sm : undefined,
               ],
             ]}
             onPress={() => setActiveTab('budgets')}
@@ -250,16 +255,27 @@ export default function BudgetsScreen() {
           >
             <PieChart
               size={15}
-              color={activeTab === 'budgets' ? colors.primary : colors.secondaryText}
+              color={
+                activeTab === 'budgets'
+                  ? isNeo
+                    ? isDark ? '#141416' : colors.onPrimary
+                    : colors.primary
+                  : colors.secondaryText
+              }
             />
             <Text
               variant="xs"
               weight={activeTab === 'budgets' ? 'bold' : 'medium'}
               style={{
-                color: activeTab === 'budgets' ? colors.mainText : colors.secondaryText,
+                color:
+                  activeTab === 'budgets'
+                    ? isNeo
+                      ? isDark ? '#141416' : colors.onPrimary
+                      : colors.mainText
+                    : colors.secondaryText,
               }}
             >
-              Budgets
+              Budgets ({activeBudgets.length})
             </Text>
           </TouchableOpacity>
 
@@ -269,10 +285,10 @@ export default function BudgetsScreen() {
               activeTab === 'goals' && [
                 styles.tabBtnActive,
                 {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.borderLight,
+                  backgroundColor: isNeo ? (isDark ? NEO_ACCENTS.pistachio : colors.primary) : colors.surface,
+                  borderColor: isNeo ? 'transparent' : colors.borderLight,
                 },
-                !isDark ? Shadows.sm : undefined,
+                !isDark && !isNeo ? Shadows.sm : undefined,
               ],
             ]}
             onPress={() => setActiveTab('goals')}
@@ -280,16 +296,27 @@ export default function BudgetsScreen() {
           >
             <Target
               size={15}
-              color={activeTab === 'goals' ? colors.primary : colors.secondaryText}
+              color={
+                activeTab === 'goals'
+                  ? isNeo
+                    ? isDark ? '#141416' : colors.onPrimary
+                    : colors.primary
+                  : colors.secondaryText
+              }
             />
             <Text
               variant="xs"
               weight={activeTab === 'goals' ? 'bold' : 'medium'}
               style={{
-                color: activeTab === 'goals' ? colors.mainText : colors.secondaryText,
+                color:
+                  activeTab === 'goals'
+                    ? isNeo
+                      ? isDark ? '#141416' : colors.onPrimary
+                      : colors.mainText
+                    : colors.secondaryText,
               }}
             >
-              Savings Goals
+              Savings Goals ({activeGoals.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -304,21 +331,35 @@ export default function BudgetsScreen() {
               style={[
                 styles.overviewCard,
                 {
-                  backgroundColor: colors.surface,
-                  borderColor: isDark ? colors.border : colors.borderLight,
+                  backgroundColor: isNeo ? '#1C1C1E' : colors.surface,
+                  borderColor: isNeo ? '#2C2C32' : isDark ? colors.border : colors.borderLight,
                 },
-                !isDark ? Shadows.sm : undefined,
+                !isDark && !isNeo ? Shadows.sm : undefined,
               ]}
             >
               <View style={styles.overviewTop}>
                 <View>
                   <View style={styles.overviewLabelRow}>
-                    <TrendingUp size={12} color={colors.secondaryText} />
-                    <Text variant="xs" color="secondary" weight="bold" style={styles.overviewLabel}>
+                    <TrendingUp size={12} color={isNeo ? NEO_ACCENTS.pistachio : colors.secondaryText} />
+                    <Text
+                      variant="xs"
+                      weight="bold"
+                      style={[
+                        styles.overviewLabel,
+                        { color: isNeo ? 'rgba(255, 255, 255, 0.65)' : colors.secondaryText },
+                      ]}
+                    >
                       TOTAL MONTHLY BUDGET
                     </Text>
                   </View>
-                  <Text variant="2xl" weight="extrabold" style={styles.overviewAmount}>
+                  <Text
+                    variant="2xl"
+                    weight="extrabold"
+                    style={[
+                      styles.overviewAmount,
+                      { color: isNeo ? '#FFFFFF' : colors.mainText },
+                    ]}
+                  >
                     {formatCurrency(totalBudgetLimit, currency)}
                   </Text>
                 </View>
@@ -327,14 +368,15 @@ export default function BudgetsScreen() {
                   style={[
                     styles.percentageBadge,
                     {
-                      backgroundColor:
-                        totalBudgetLimit === 0
-                          ? colors.elevatedSurface
-                          : overallPercentage >= 100
-                          ? colors.expenseMuted
-                          : overallPercentage >= 80
-                          ? colors.warningMuted
-                          : colors.successMuted,
+                      backgroundColor: isNeo
+                        ? 'rgba(203, 216, 126, 0.16)'
+                        : totalBudgetLimit === 0
+                        ? colors.elevatedSurface
+                        : overallPercentage >= 100
+                        ? colors.expenseMuted
+                        : overallPercentage >= 80
+                        ? colors.warningMuted
+                        : colors.successMuted,
                     },
                   ]}
                 >
@@ -342,14 +384,15 @@ export default function BudgetsScreen() {
                     variant="xs"
                     weight="extrabold"
                     style={{
-                      color:
-                        totalBudgetLimit === 0
-                          ? colors.secondaryText
-                          : overallPercentage >= 100
-                          ? colors.negative
-                          : overallPercentage >= 80
-                          ? colors.warning
-                          : colors.positive,
+                      color: isNeo
+                        ? NEO_ACCENTS.pistachio
+                        : totalBudgetLimit === 0
+                        ? colors.secondaryText
+                        : overallPercentage >= 100
+                        ? colors.negative
+                        : overallPercentage >= 80
+                        ? colors.warning
+                        : colors.positive,
                       fontSize: 11,
                     }}
                   >
@@ -363,7 +406,7 @@ export default function BudgetsScreen() {
                 style={[
                   styles.track,
                   {
-                    backgroundColor: isDark ? colors.elevatedSurface : colors.background,
+                    backgroundColor: isNeo ? '#2C2C34' : isDark ? colors.elevatedSurface : colors.background,
                   },
                 ]}
               >
@@ -372,14 +415,15 @@ export default function BudgetsScreen() {
                     styles.fill,
                     {
                       width: `${Math.min(overallProgress * 100, 100)}%`,
-                      backgroundColor:
-                        totalBudgetLimit === 0
-                          ? colors.borderLight
-                          : overallPercentage >= 100
-                          ? colors.negative
-                          : overallPercentage >= 80
-                          ? colors.warning
-                          : colors.positive,
+                      backgroundColor: isNeo
+                        ? NEO_ACCENTS.pistachio
+                        : totalBudgetLimit === 0
+                        ? colors.borderLight
+                        : overallPercentage >= 100
+                        ? colors.negative
+                        : overallPercentage >= 80
+                        ? colors.warning
+                        : colors.positive,
                     },
                   ]}
                 />
@@ -390,14 +434,27 @@ export default function BudgetsScreen() {
                 <View
                   style={[
                     styles.statTile,
-                    { backgroundColor: isDark ? colors.elevatedSurface : colors.background, borderColor: colors.borderLight },
+                    {
+                      backgroundColor: isNeo ? '#26262B' : isDark ? colors.elevatedSurface : colors.background,
+                      borderColor: isNeo ? '#36363E' : colors.borderLight,
+                    },
                   ]}
                 >
                   <View style={styles.statTileHeader}>
-                    <ArrowUpRight size={12} color={colors.secondaryText} />
-                    <Text variant="xs" color="secondary" weight="medium">Spent</Text>
+                    <ArrowUpRight size={12} color={isNeo ? 'rgba(255, 255, 255, 0.65)' : colors.secondaryText} />
+                    <Text
+                      variant="xs"
+                      weight="medium"
+                      style={{ color: isNeo ? 'rgba(255, 255, 255, 0.65)' : colors.secondaryText }}
+                    >
+                      Spent
+                    </Text>
                   </View>
-                  <Text variant="sm" weight="bold" color="main" style={{ marginTop: 2 }}>
+                  <Text
+                    variant="sm"
+                    weight="bold"
+                    style={{ marginTop: 2, color: isNeo ? '#FFFFFF' : colors.mainText }}
+                  >
                     {formatCurrency(totalBudgetSpent, currency)}
                   </Text>
                 </View>
@@ -405,19 +462,28 @@ export default function BudgetsScreen() {
                 <View
                   style={[
                     styles.statTile,
-                    { backgroundColor: isDark ? colors.elevatedSurface : colors.background, borderColor: colors.borderLight },
+                    {
+                      backgroundColor: isNeo ? '#26262B' : isDark ? colors.elevatedSurface : colors.background,
+                      borderColor: isNeo ? '#36363E' : colors.borderLight,
+                    },
                   ]}
                 >
                   <View style={styles.statTileHeader}>
-                    <Wallet size={12} color={remainingBudget >= 0 ? colors.positive : colors.negative} />
-                    <Text variant="xs" color="secondary" weight="medium">Remaining</Text>
+                    <Wallet size={12} color={remainingBudget >= 0 ? (isNeo ? NEO_ACCENTS.pistachio : colors.positive) : colors.negative} />
+                    <Text
+                      variant="xs"
+                      weight="medium"
+                      style={{ color: isNeo ? 'rgba(255, 255, 255, 0.65)' : colors.secondaryText }}
+                    >
+                      Remaining
+                    </Text>
                   </View>
                   <Text
                     variant="sm"
                     weight="bold"
                     style={{
                       marginTop: 2,
-                      color: remainingBudget >= 0 ? colors.positive : colors.negative,
+                      color: remainingBudget >= 0 ? (isNeo ? NEO_ACCENTS.pistachio : colors.positive) : colors.negative,
                     }}
                   >
                     {formatCurrency(remainingBudget, currency)}
@@ -767,7 +833,7 @@ const styles = StyleSheet.create({
   },
   tabSwitcher: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
     padding: 3,
     marginBottom: Spacing.lg,
@@ -779,7 +845,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 8,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.full,
   },
   tabBtnActive: {
     borderWidth: 1,

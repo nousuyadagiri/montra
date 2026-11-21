@@ -129,10 +129,10 @@ export default function WelcomeScreen() {
             <RadialGradient id="topBlob" cx="100%" cy="0%" r="100%">
               <Stop
                 offset="0%"
-                stopColor={isDark ? '#312E81' : '#DDD6FE'}
-                stopOpacity={isDark ? 0.3 : 0.65}
+                stopColor={colors.primary}
+                stopOpacity={isDark ? 0.35 : 0.25}
               />
-              <Stop offset="100%" stopColor={isDark ? '#312E81' : '#DDD6FE'} stopOpacity={0} />
+              <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
             </RadialGradient>
           </Defs>
           <Circle cx={180} cy={0} r={180} fill="url(#topBlob)" />
@@ -199,10 +199,10 @@ export default function WelcomeScreen() {
                       <RadialGradient id={`glow_${slide.id}`} cx="50%" cy="50%" r="50%">
                         <Stop
                           offset="0%"
-                          stopColor="#6366F1"
-                          stopOpacity={isDark ? 0.35 : 0.15}
+                          stopColor={colors.primary}
+                          stopOpacity={isDark ? 0.35 : 0.18}
                         />
-                        <Stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+                        <Stop offset="100%" stopColor={colors.primary} stopOpacity={0} />
                       </RadialGradient>
                     </Defs>
                     <Circle cx="100" cy="100" r="100" fill={`url(#glow_${slide.id})`} />
@@ -236,7 +236,7 @@ export default function WelcomeScreen() {
                     weight="extrabold"
                     style={[
                       styles.slideTitle,
-                      { color: '#4F46E5' },
+                      { color: colors.primary },
                       isCompactHeight && styles.slideTitleCompact,
                     ]}
                   >
@@ -275,7 +275,7 @@ export default function WelcomeScreen() {
                     {
                       width: isActive ? 22 : 12,
                       backgroundColor: isActive
-                        ? '#4F46E5'
+                        ? colors.primary
                         : isDark
                         ? '#334155'
                         : '#CBD5E1',
@@ -297,15 +297,15 @@ export default function WelcomeScreen() {
           style={[
             styles.primaryCtaBtn,
             {
-              backgroundColor: '#4F46E5',
-              shadowColor: '#4F46E5',
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
             },
           ]}
         >
-          <Text variant="md" weight="bold" style={styles.primaryCtaText}>
+          <Text variant="md" weight="bold" style={[styles.primaryCtaText, { color: colors.onPrimary }]}>
             Get Started
           </Text>
-          <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.4} style={{ marginLeft: 6 }} />
+          <ArrowRight size={18} color={colors.onPrimary} strokeWidth={2.4} style={{ marginLeft: 6 }} />
         </TouchableOpacity>
 
         {/* Secondary Row: Sign In & Try Demo */}
@@ -334,12 +334,12 @@ export default function WelcomeScreen() {
               styles.secondaryBtn,
               {
                 backgroundColor: isDark ? colors.surface : '#FFFFFF',
-                borderColor: isDark ? '#6366F1' : '#C7D2FE',
+                borderColor: colors.primaryMuted,
               },
             ]}
           >
-            <Sparkles size={16} color="#4F46E5" style={{ marginRight: 6 }} />
-            <Text variant="sm" weight="bold" style={{ color: '#4F46E5' }}>
+            <Sparkles size={16} color={colors.primary} style={{ marginRight: 6 }} />
+            <Text variant="sm" weight="bold" style={{ color: colors.primary }}>
               Try Demo
             </Text>
           </TouchableOpacity>

@@ -8,27 +8,23 @@ import {
   Keyboard,
   Platform,
   StatusBar as RNStatusBar,
+  Dimensions,
   useWindowDimensions,
-  LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image, ImageProps } from 'expo-image';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
-import { ChevronLeft, AlertCircle } from 'lucide-react-native';
+import { AlertCircle } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { Text } from '../ui';
-import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
-
-interface MontraMarkProps {
-  size?: number;
-}
+import { Spacing, BorderRadius } from '../../theme/tokens';
 
 const MONTRA_BRAND_LOGO = require('../../../assets/images/brand-logo.png');
 
-export function MontraMark({ size = 32 }: MontraMarkProps) {
+export function MontraMark({ size = 28 }: { size?: number }) {
   const { colors } = useAppTheme();
-  const radius = Math.round(size * 0.3);
+  const radius = Math.round(size * 0.28);
 
   return (
     <View
@@ -37,49 +33,79 @@ export function MontraMark({ size = 32 }: MontraMarkProps) {
         height: size,
         borderRadius: radius,
         overflow: 'hidden',
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
-        backgroundColor: '#090F1B',
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       <Image
         source={MONTRA_BRAND_LOGO}
         style={{ width: '100%', height: '100%' }}
         contentFit="cover"
-        transition={120}
+        transition={100}
       />
     </View>
   );
 }
 
 export function AuthAmbientBackground() {
-  const { width, height } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const screenDimensions = Dimensions.get('screen');
   const { colors, isDark } = useAppTheme();
-  const glowHeight = Math.min(height, 520);
+
+  // Full screen coverage including all system insets, navigation bars and physical screen bounds
+  const fullWidth = Math.max(windowWidth, screenDimensions.width, 360);
+  const fullHeight = Math.max(windowHeight, screenDimensions.height, 900) + 120;
 
   return (
-    <View style={[styles.ambientLayer, { height: glowHeight }]} pointerEvents="none">
-      <Svg width={width} height={glowHeight}>
+    <View style={styles.ambientContainer} pointerEvents="none">
+      <Svg width={fullWidth} height={fullHeight} style={StyleSheet.absoluteFill}>
         <Defs>
-          <RadialGradient id="authGlowCenter" cx="50%" cy="18%" r="58%">
-            <Stop
-              offset="0%"
-              stopColor={colors.accent}
-              stopOpacity={isDark ? 0.11 : 0.07}
-            />
-            <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
-          </RadialGradient>
-          <RadialGradient id="authGlowSecondary" cx="88%" cy="54%" r="45%">
+          {/* Top-Right Soft Primary / Accent Glow */}
+          <RadialGradient id="topRightGlow" cx="95%" cy="6%" r="55%">
             <Stop
               offset="0%"
               stopColor={colors.primary}
-              stopOpacity={isDark ? 0.07 : 0.04}
+              stopOpacity={isDark ? 0.35 : 0.22}
+            />
+            <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
+          </RadialGradient>
+
+          {/* Top-Left Soft Secondary Glow */}
+          <RadialGradient id="topLeftGlow" cx="5%" cy="10%" r="45%">
+            <Stop
+              offset="0%"
+              stopColor={colors.accent}
+              stopOpacity={isDark ? 0.25 : 0.16}
+            />
+            <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
+          </RadialGradient>
+
+          {/* Bottom Ambient Glow - Radiates smoothly from bottom center across the entire lower screen */}
+          <RadialGradient id="bottomSoftGlow" cx="50%" cy="98%" r="65%">
+            <Stop
+              offset="0%"
+              stopColor={colors.primary}
+              stopOpacity={isDark ? 0.22 : 0.14}
             />
             <Stop offset="100%" stopColor={colors.primary} stopOpacity={0} />
           </RadialGradient>
+
+          {/* Bottom-Right Subtle Glow */}
+          <RadialGradient id="bottomRightGlow" cx="90%" cy="85%" r="50%">
+            <Stop
+              offset="0%"
+              stopColor={colors.accent}
+              stopOpacity={isDark ? 0.20 : 0.12}
+            />
+            <Stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
+          </RadialGradient>
         </Defs>
-        <Rect x={0} y={0} width={width} height={glowHeight} fill="url(#authGlowCenter)" />
-        <Rect x={0} y={0} width={width} height={glowHeight} fill="url(#authGlowSecondary)" />
+
+        <Rect x={0} y={0} width="100%" height="100%" fill="url(#topRightGlow)" />
+        <Rect x={0} y={0} width="100%" height="100%" fill="url(#topLeftGlow)" />
+        <Rect x={0} y={0} width="100%" height="100%" fill="url(#bottomSoftGlow)" />
+        <Rect x={0} y={0} width="100%" height="100%" fill="url(#bottomRightGlow)" />
       </Svg>
     </View>
   );
@@ -91,7 +117,7 @@ interface AuthModeTabsProps {
 
 function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
 
   const tabs: {
     id: 'login' | 'register';
@@ -103,13 +129,21 @@ function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
   ];
 
   return (
-    <View style={[styles.underlineTabsRow, { borderBottomColor: colors.borderLight }]}>
+    <View
+      style={[
+        styles.segmentedTrack,
+        {
+          backgroundColor: isDark ? '#1C1C22' : '#EFF1F6',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+        },
+      ]}
+    >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         return (
           <TouchableOpacity
             key={tab.id}
-            activeOpacity={0.75}
+            activeOpacity={0.8}
             disabled={isActive}
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
@@ -118,25 +152,35 @@ function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
                 router.replace(tab.route);
               }
             }}
-            style={styles.underlineTab}
+            style={[
+              styles.segmentBtn,
+              isActive && [
+                styles.segmentBtnActive,
+                {
+                  backgroundColor: isDark ? '#2C2C34' : '#FFFFFF',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: isDark ? 0.35 : 0.08,
+                  shadowRadius: 4,
+                  elevation: 2,
+                },
+              ],
+            ]}
           >
             <Text
               variant="sm"
               weight={isActive ? 'bold' : 'medium'}
               style={{
-                color: isActive ? colors.mainText : colors.secondaryText,
+                fontSize: 14,
+                color: isActive
+                  ? isDark
+                    ? '#FFFFFF'
+                    : '#141416'
+                  : colors.secondaryText,
               }}
             >
               {tab.label}
             </Text>
-            <View
-              style={[
-                styles.underlineIndicator,
-                {
-                  backgroundColor: isActive ? colors.primary : 'transparent',
-                },
-              ]}
-            />
           </TouchableOpacity>
         );
       })}
@@ -144,17 +188,19 @@ function AuthModeTabs({ activeTab }: AuthModeTabsProps) {
   );
 }
 
-interface AuthShellProps {
+export interface AuthShellProps {
   eyebrow?: string;
   title: string;
   subtitle: string;
   errorMessage?: string | null;
   icon?: React.ReactNode;
   imageSource?: ImageProps['source'];
+  illustrationSource?: ImageProps['source'];
   activeTab?: 'login' | 'register';
   compactSpacing?: boolean;
   showBack?: boolean;
   onBack?: () => void;
+  onSkip?: () => void;
   rightSlot?: React.ReactNode;
   footer?: React.ReactNode;
   children: React.ReactNode;
@@ -165,24 +211,20 @@ export function AuthShell({
   title,
   subtitle,
   errorMessage,
-  icon,
   imageSource,
+  illustrationSource,
   activeTab,
   compactSpacing = false,
-  showBack = true,
-  onBack,
-  rightSlot,
+  onSkip,
   footer,
   children,
 }: AuthShellProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { colors, isDark } = useAppTheme();
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const [contentHeight, setContentHeight] = useState(0);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -195,231 +237,154 @@ export function AuthShell({
     };
   }, []);
 
-  const isCompactHeight = height < 720 || compactSpacing;
+  const isCompactHeight = height < 740 || compactSpacing;
   const statusBarHeight = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) : 0;
   const topInset = Math.max(insets.top, statusBarHeight, Platform.OS === 'android' ? 16 : 10);
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 20 : 12);
 
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    if (router.canGoBack()) {
-      router.back();
+  const displayImage = illustrationSource || imageSource;
+  const illustrationHeight = isCompactHeight ? 135 : 160;
+  const illustrationWidth = Math.min(width * 0.72, 240);
+
+  const handleSkip = () => {
+    if (onSkip) {
+      onSkip();
     } else {
-      router.replace('/(auth)/welcome');
+      router.replace('/(tabs)');
     }
   };
 
-  const handleViewportLayout = (e: LayoutChangeEvent) => {
-    setViewportHeight(e.nativeEvent.layout.height);
-  };
-
-  const handleContentSizeChange = (_w: number, h: number) => {
-    setContentHeight(h);
-  };
-
-  // Keep layout locked to viewport when content fits; allow scrolling if keyboard or errors expand height
-  const canScroll = isKeyboardVisible || (viewportHeight > 0 && contentHeight > viewportHeight + 4);
-  const artSize = compactSpacing ? 46 : isCompactHeight ? 50 : 54;
+  const pageBg = isDark ? colors.background : '#F8F9FD';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: pageBg }]}>
       <AuthAmbientBackground />
 
       <KeyboardAvoidingView
         style={styles.flex1}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           style={styles.flex1}
-          onLayout={handleViewportLayout}
-          onContentSizeChange={handleContentSizeChange}
-          scrollEnabled={canScroll}
-          bounces={false}
-          overScrollMode="never"
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: topInset + (isCompactHeight ? Spacing.xs : Spacing.sm),
-              paddingBottom: bottomInset + (isCompactHeight ? Spacing.xs : Spacing.sm),
+              paddingTop: topInset + (Platform.OS === 'android' ? 8 : 4),
+              paddingBottom: bottomInset + Spacing.md,
             },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          bounces={false}
         >
-          {/* Minimal Top Navigation Row */}
-          <View style={styles.topBar}>
-            {showBack ? (
-              <TouchableOpacity
-                activeOpacity={0.75}
-                onPress={handleBack}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                style={[
-                  styles.backBtn,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: isDark ? colors.border : colors.borderLight,
-                  },
-                ]}
-              >
-                <ChevronLeft size={19} color={colors.mainText} strokeWidth={2.2} />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.topBarPlaceholder} />
-            )}
-
-            {rightSlot !== undefined ? (
-              rightSlot
-            ) : (
-              <View style={styles.brandInline}>
-                <MontraMark size={22} />
-                <Text variant="xs" weight="bold" color="secondary" style={styles.brandName}>
+          <View style={styles.contentUpper}>
+            {/* Top Navigation Row: MONTRA Logo + Brand on Left, Skip on Right */}
+            <View style={styles.topBar}>
+              <View style={styles.brandRow}>
+                <MontraMark size={28} />
+                <Text
+                  variant="md"
+                  weight="extrabold"
+                  style={[styles.brandWordmark, { color: isDark ? '#FFFFFF' : '#141416' }]}
+                >
                   MONTRA
                 </Text>
               </View>
-            )}
-          </View>
 
-          {/* Balanced Centered Stage */}
-          <View
-            style={[
-              styles.centerStage,
-              {
-                paddingVertical: compactSpacing ? Spacing.xs : Spacing.sm,
-              },
-            ]}
-          >
-            {/* Editorial Split Hero Header */}
-            <View
-              style={[
-                styles.heroRow,
-                { marginBottom: compactSpacing ? Spacing.sm + 4 : Spacing.lg },
-              ]}
-            >
-              <View style={styles.heroCopy}>
-                {eyebrow ? (
-                  <Text
-                    variant="xs"
-                    weight="bold"
-                    style={[styles.eyebrowText, { color: colors.primary }]}
-                  >
-                    {eyebrow}
-                  </Text>
-                ) : null}
-
-                <Text
-                  variant="2xl"
-                  weight="extrabold"
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  style={[styles.title, compactSpacing && styles.titleCompact]}
-                >
-                  {title}
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleSkip}
+                hitSlop={{ top: 12, bottom: 12, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel="Skip to app"
+                style={styles.skipBtn}
+              >
+                <Text variant="sm" weight="semibold" style={{ color: colors.secondaryText, fontSize: 14 }}>
+                  Skip
                 </Text>
+              </TouchableOpacity>
+            </View>
 
-                <Text
-                  variant="sm"
-                  color="secondary"
-                  numberOfLines={2}
-                  style={styles.subtitle}
-                >
-                  {subtitle}
-                </Text>
+            {/* Top 3D Character/Object Illustration */}
+            {displayImage ? (
+              <View style={[styles.illustrationWrapper, { marginVertical: isCompactHeight ? 6 : 12 }]}>
+                <Image
+                  source={displayImage}
+                  style={{
+                    width: illustrationWidth,
+                    height: illustrationHeight,
+                  }}
+                  contentFit="contain"
+                  transition={150}
+                />
               </View>
+            ) : null}
 
-              {imageSource ? (
-                <View
-                  style={[
-                    styles.artFrame,
-                    {
-                      width: artSize,
-                      height: artSize,
-                      borderRadius: compactSpacing ? 14 : 16,
-                      borderColor: isDark ? colors.border : colors.borderLight,
-                      backgroundColor: colors.surface,
-                    },
-                    !isDark ? Shadows.sm : undefined,
-                  ]}
+            {/* Typography Header Block (Left Aligned matching Reference Image 4) */}
+            <View style={styles.copyBlock}>
+              {eyebrow ? (
+                <Text
+                  variant="xs"
+                  weight="bold"
+                  style={[styles.eyebrow, { color: colors.primary }]}
                 >
-                  <Image
-                    source={imageSource}
-                    style={styles.fillImage}
-                    contentFit="cover"
-                    transition={180}
-                  />
-                </View>
-              ) : icon ? (
-                <View
-                  style={[
-                    styles.heroIconBadge,
-                    {
-                      backgroundColor: colors.softAccent,
-                      borderColor: colors.borderLight,
-                    },
-                  ]}
-                >
-                  {icon}
-                </View>
-              ) : null}
-            </View>
-
-            {/* Clean Architectural Form Surface */}
-            <View
-              style={[
-                styles.authCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: isDark ? colors.border : colors.borderLight,
-                  paddingHorizontal: compactSpacing ? Spacing.md + 4 : Spacing.lg + 2,
-                  paddingTop: activeTab
-                    ? compactSpacing
-                      ? Spacing.sm
-                      : Spacing.sm + 4
-                    : compactSpacing
-                    ? Spacing.md + 2
-                    : Spacing.lg + 2,
-                  paddingBottom: compactSpacing ? Spacing.md + 2 : Spacing.lg + 2,
-                },
-                !isDark ? Shadows.sm : undefined,
-              ]}
-            >
-              {activeTab ? (
-                <View style={{ marginBottom: compactSpacing ? Spacing.sm + 4 : Spacing.md + 2 }}>
-                  <AuthModeTabs activeTab={activeTab} />
-                </View>
+                  {eyebrow}
+                </Text>
               ) : null}
 
-              {errorMessage ? (
-                <View
-                  style={[
-                    styles.errorBanner,
-                    {
-                      backgroundColor: colors.errorMuted,
-                      borderColor: colors.error,
-                    },
-                  ]}
-                >
-                  <AlertCircle size={15} color={colors.error} style={{ marginTop: 1 }} />
-                  <Text variant="xs" color="error" style={styles.errorText}>
-                    {errorMessage}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View style={styles.formBody}>{children}</View>
-            </View>
-
-            {footer ? (
-              <View
+              <Text
+                variant="2xl"
+                weight="extrabold"
                 style={[
-                  styles.footerSlot,
-                  { marginTop: compactSpacing ? Spacing.sm + 4 : Spacing.md + 4 },
+                  styles.screenTitle,
+                  isCompactHeight && styles.screenTitleCompact,
+                  { color: isDark ? '#FFFFFF' : '#141416' },
                 ]}
               >
+                {title}
+              </Text>
+
+              <Text
+                variant="sm"
+                style={[styles.screenSubtitle, { color: colors.secondaryText }]}
+              >
+                {subtitle}
+              </Text>
+            </View>
+
+            {/* Segmented Pill Tabs (Sign In / Create Account) */}
+            {activeTab ? (
+              <View style={styles.tabsWrapper}>
+                <AuthModeTabs activeTab={activeTab} />
+              </View>
+            ) : null}
+
+            {/* Optional Error Alert Banner */}
+            {errorMessage ? (
+              <View
+                style={[
+                  styles.errorBanner,
+                  {
+                    backgroundColor: colors.errorMuted,
+                    borderColor: colors.error,
+                  },
+                ]}
+              >
+                <AlertCircle size={15} color={colors.error} style={{ marginTop: 1 }} />
+                <Text variant="xs" color="error" style={styles.errorText}>
+                  {errorMessage}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Form Content Area */}
+            <View style={styles.formContent}>
+              {children}
+            </View>
+
+            {/* Trust / Security Footer Right Below Button */}
+            {footer ? (
+              <View style={styles.footerWrapper}>
                 {footer}
               </View>
             ) : null}
@@ -437,115 +402,94 @@ const styles = StyleSheet.create({
   flex1: {
     flex: 1,
   },
-  ambientLayer: {
+  ambientContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    bottom: 0,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.lg + 2,
+    paddingHorizontal: Spacing.xl,
+  },
+  contentUpper: {
+    width: '100%',
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 38,
+    minHeight: 40,
+    marginBottom: Spacing.xs,
   },
-  topBarPlaceholder: {
-    width: 38,
-    height: 38,
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: BorderRadius.full,
-    borderWidth: StyleSheet.hairlineWidth,
+  brandWordmark: {
+    letterSpacing: 1.5,
+    fontSize: 15,
+  },
+  skipBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  illustrationWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs + 2,
+  copyBlock: {
+    alignItems: 'flex-start',
+    marginBottom: Spacing.sm + 2,
   },
-  brandName: {
-    letterSpacing: 1.8,
+  eyebrow: {
     fontSize: 11,
-  },
-  centerStage: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  heroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-    paddingHorizontal: 2,
-  },
-  heroCopy: {
-    flex: 1,
-  },
-  eyebrowText: {
-    fontSize: 10.5,
     letterSpacing: 1.4,
     marginBottom: 4,
+    textTransform: 'uppercase',
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 33,
-    letterSpacing: -0.8,
+  screenTitle: {
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.6,
     marginBottom: 4,
   },
-  titleCompact: {
-    fontSize: 24,
-    lineHeight: 29,
-    marginBottom: 2,
+  screenTitleCompact: {
+    fontSize: 23,
+    lineHeight: 28,
   },
-  subtitle: {
+  screenSubtitle: {
+    fontSize: 13.5,
     lineHeight: 19,
+    maxWidth: 330,
   },
-  artFrame: {
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  fillImage: {
+  tabsWrapper: {
     width: '100%',
-    height: '100%',
+    marginBottom: Spacing.md + 2,
   },
-  heroIconBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  authCard: {
-    width: '100%',
-    borderRadius: BorderRadius['2xl'],
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  underlineTabsRow: {
+  segmentedTrack: {
     flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    width: '100%',
+    height: 46,
+    borderRadius: 23,
+    padding: 3,
+    borderWidth: 1,
+    alignItems: 'center',
   },
-  underlineTab: {
+  segmentBtn: {
     flex: 1,
+    height: '100%',
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.sm + 2,
-    position: 'relative',
   },
-  underlineIndicator: {
-    position: 'absolute',
-    bottom: -0.5,
-    left: Spacing.md,
-    right: Spacing.md,
-    height: 2,
-    borderRadius: 2,
+  segmentBtnActive: {
+    // shadow & bg configured inline with theme tokens
+  },
+  formContent: {
+    width: '100%',
   },
   errorBanner: {
     flexDirection: 'row',
@@ -554,16 +498,16 @@ const styles = StyleSheet.create({
     padding: Spacing.sm + 2,
     borderRadius: BorderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: Spacing.sm + 2,
+    marginBottom: Spacing.md,
   },
   errorText: {
     flex: 1,
     lineHeight: 17,
   },
-  formBody: {
-    width: '100%',
-  },
-  footerSlot: {
+  footerWrapper: {
+    marginTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 });

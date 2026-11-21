@@ -41,11 +41,13 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
   );
 
   const paddingTop = 12;
-  const paddingBottom = 24;
+  const paddingBottom = 26;
   const chartHeight = height - paddingTop - paddingBottom;
   const groupWidth = chartWidth / data.length;
-  const barWidth = Math.max(8, groupWidth * 0.22);
+  const barWidth = Math.max(10, groupWidth * 0.24);
   const barGap = 4;
+
+  const placeholderBarColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#E8ECF2';
 
   return (
     <View style={styles.container}>
@@ -76,7 +78,7 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
               y1={y}
               x2={chartWidth}
               y2={y}
-              stroke={colors.borderLight}
+              stroke={isDark ? 'rgba(255, 255, 255, 0.08)' : colors.borderLight}
               strokeDasharray="4 4"
               strokeWidth={1}
             />
@@ -86,8 +88,8 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
         {/* Bars */}
         {data.map((item, idx) => {
           const groupCenterX = idx * groupWidth + groupWidth / 2;
-          const incomeHeight = item.income > 0 ? Math.max(4, (item.income / maxVal) * chartHeight) : 2;
-          const expenseHeight = item.expense > 0 ? Math.max(4, (item.expense / maxVal) * chartHeight) : 2;
+          const incomeHeight = item.income > 0 ? Math.max(6, (item.income / maxVal) * chartHeight) : 3;
+          const expenseHeight = item.expense > 0 ? Math.max(6, (item.expense / maxVal) * chartHeight) : 3;
 
           const incomeX = groupCenterX - barWidth - barGap / 2;
           const expenseX = groupCenterX + barGap / 2;
@@ -104,8 +106,8 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
                 width={barWidth}
                 height={incomeHeight}
                 rx={Math.min(barWidth / 2, 4)}
-                fill={item.income > 0 ? colors.positive : colors.borderLight}
-                opacity={item.income > 0 ? 1 : 0.4}
+                fill={item.income > 0 ? colors.positive : placeholderBarColor}
+                opacity={item.income > 0 ? 1 : 0.6}
               />
 
               {/* Expense bar */}
@@ -115,8 +117,8 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
                 width={barWidth}
                 height={expenseHeight}
                 rx={Math.min(barWidth / 2, 4)}
-                fill={item.expense > 0 ? colors.negative : colors.borderLight}
-                opacity={item.expense > 0 ? 1 : 0.4}
+                fill={item.expense > 0 ? colors.negative : placeholderBarColor}
+                opacity={item.expense > 0 ? 1 : 0.6}
               />
 
               {/* Month label */}
@@ -124,8 +126,8 @@ export const IncomeExpenseChart: React.FC<IncomeExpenseChartProps> = ({
                 x={groupCenterX}
                 y={height - 6}
                 fill={colors.secondaryText}
-                fontSize={10}
-                fontWeight="500"
+                fontSize={11}
+                fontWeight="600"
                 textAnchor="middle"
               >
                 {item.month}

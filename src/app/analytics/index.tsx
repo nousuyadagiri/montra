@@ -8,7 +8,16 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Download, TrendingUp, Sparkles, PieChart, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
+import {
+  Download,
+  TrendingUp,
+  Sparkles,
+  PieChart,
+  ArrowDownLeft,
+  ArrowUpRight,
+  ShieldCheck,
+  Zap,
+} from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
@@ -19,16 +28,15 @@ import { SupportedCurrency } from '../../types/database';
 import { DEMO_ANALYTICS_INSIGHTS } from '../../services/demoData';
 import {
   Text,
-  Card,
   Header,
   IncomeExpenseChart,
   DemoDataBadge,
   LoadingState,
   ErrorState,
-  TransactionsIllustration,
+  CategoryIcon,
 } from '../../components/ui';
-import { CategoryProgressRow } from '../../components/charts/FinanceCharts';
 import { Spacing, BorderRadius, Shadows } from '../../theme/tokens';
+import { NEO_ACCENTS } from '../../theme/colors';
 import { exportTransactionsToCSV } from '../../utils/csvExport';
 import { formatCurrency } from '../../utils/currency';
 import { toast } from '../../store/toastStore';
@@ -42,7 +50,8 @@ const PERIODS = [
 
 export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors, isDark, themePalette } = useAppTheme();
+  const isNeo = themePalette === 'neo-pistachio';
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -119,12 +128,16 @@ export default function AnalyticsScreen() {
   const demoSummary = getDemoAnalytics(period);
 
   const activeSummary = isDemo ? demoSummary : data;
-  const currency: SupportedCurrency = ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
+  const currency: SupportedCurrency =
+    ((isDemo ? demoProfile?.currency : profile?.currency) as SupportedCurrency) || 'INR';
 
   const totalIncome = activeSummary?.totalIncome || 0;
   const totalExpenses = activeSummary?.totalExpenses || 0;
   const netSavings = activeSummary?.netSavings || 0;
   const savingsRate = activeSummary?.savingsRate || 0;
+  const dailyDays = period === 'week' ? 7 : period === 'month' ? 30 : 365;
+  const dailyAvg = totalExpenses / dailyDays;
+  const expenseRatio = totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0;
 
   const chartData = useMemo(
     () =>
@@ -175,6 +188,15 @@ export default function AnalyticsScreen() {
     );
   }
 
+  // Consistent High-Contrast Obsidian Theme for the Hero Summary Card
+  const heroCardBg = '#141418';
+  const heroCardBorder = 'rgba(255, 255, 255, 0.09)';
+  const heroSubText = 'rgba(255, 255, 255, 0.7)';
+  const heroMutedBorder = 'rgba(255, 255, 255, 0.1)';
+  const heroEmerald = '#34D399';
+  const heroCoral = '#FB7185';
+  const heroPistachio = '#CBD87E';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Header
@@ -197,7 +219,7 @@ export default function AnalyticsScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + Spacing['3xl'] },
+          { paddingBottom: insets.bottom + 110 },
         ]}
         refreshControl={
           <RefreshControl
@@ -208,15 +230,21 @@ export default function AnalyticsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Period Selector Tabs */}
+        {/* 1. Period Selector Tabs (Sleek Apple Segmented Control) */}
         <View
           style={[
             styles.periodTabs,
-            { backgroundColor: colors.elevatedSurface, borderColor: colors.borderLight },
+            {
+              backgroundColor: isDark ? '#1C1C22' : '#EEF1F6',
+              borderColor: isDark ? '#2A2A32' : '#E2E6ED',
+            },
           ]}
         >
           {PERIODS.map((p) => {
             const isSelected = period === p.value;
+            const activeBg = isDark ? '#2C2C38' : '#FFFFFF';
+            const activeColor = isDark ? '#FFFFFF' : '#141416';
+
             return (
               <TouchableOpacity
                 key={p.value}
@@ -225,17 +253,23 @@ export default function AnalyticsScreen() {
                 style={[
                   styles.tab,
                   {
-                    backgroundColor: isSelected ? colors.surface : 'transparent',
-                    borderColor: isSelected ? colors.borderLight : 'transparent',
+                    backgroundColor: isSelected ? activeBg : 'transparent',
+                    borderColor: isSelected
+                      ? isDark
+                        ? '#3C3C4A'
+                        : '#E2E6ED'
+                      : 'transparent',
                     borderWidth: isSelected ? StyleSheet.hairlineWidth : 0,
                   },
+                  isSelected && !isDark ? styles.activeTabShadow : undefined,
                 ]}
               >
                 <Text
                   variant="xs"
                   weight={isSelected ? 'bold' : 'medium'}
                   style={{
-                    color: isSelected ? colors.mainText : colors.secondaryText,
+                    color: isSelected ? activeColor : colors.secondaryText,
+                    fontSize: 12,
                   }}
                 >
                   {p.label}
@@ -245,29 +279,31 @@ export default function AnalyticsScreen() {
           })}
         </View>
 
-        {/* Financial Net Summary Card */}
+        {/* 2. Hero Net Savings Card (Obsidian Executive Style - Crystal Clear Contrast) */}
         <View
           style={[
             styles.summaryCard,
             {
-              backgroundColor: colors.surface,
-              borderColor: isDark ? colors.border : colors.borderLight,
+              backgroundColor: heroCardBg,
+              borderColor: heroCardBorder,
             },
-            !isDark ? Shadows.sm : undefined,
+            Shadows.md,
           ]}
         >
+          {/* Header Row: Label & Savings Rate Pill */}
           <View style={styles.summaryTopRow}>
             <View>
-              <Text variant="xs" color="secondary" weight="bold" style={styles.summarySubLabel}>
+              <Text variant="xs" weight="bold" style={[styles.summarySubLabel, { color: heroSubText }]}>
                 NET SAVINGS ({period.toUpperCase()})
               </Text>
               <Text
                 variant="2xl"
                 weight="extrabold"
                 style={{
-                  color: netSavings >= 0 ? colors.positive : colors.negative,
-                  marginTop: 3,
-                  fontSize: 24,
+                  color: netSavings >= 0 ? heroEmerald : heroCoral,
+                  marginTop: 4,
+                  fontSize: 27,
+                  letterSpacing: -0.5,
                 }}
               >
                 {netSavings >= 0 ? '+' : ''}
@@ -281,73 +317,194 @@ export default function AnalyticsScreen() {
                 {
                   backgroundColor:
                     savingsRate >= 50
-                      ? colors.successMuted
-                      : colors.warningMuted,
+                      ? 'rgba(52, 211, 153, 0.18)'
+                      : 'rgba(251, 191, 36, 0.18)',
                 },
               ]}
             >
               <Text
                 variant="xs"
                 weight="bold"
-                style={{ color: savingsRate >= 50 ? colors.positive : colors.warning, fontSize: 11.5 }}
+                style={{
+                  color: savingsRate >= 50 ? heroEmerald : '#FBBF24',
+                  fontSize: 12,
+                }}
               >
                 {savingsRate}% Saved
               </Text>
             </View>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+          {/* Embedded Savings Rate Progress Bar */}
+          <View style={styles.savingsProgressSection}>
+            <View style={[styles.savingsProgressTrack, { backgroundColor: heroMutedBorder }]}>
+              <View
+                style={[
+                  styles.savingsProgressFill,
+                  {
+                    width: `${Math.min(Math.max(savingsRate, 4), 100)}%`,
+                    backgroundColor: netSavings >= 0 ? heroEmerald : heroCoral,
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.savingsProgressMeta}>
+              <Text variant="xs" style={{ color: heroSubText, fontSize: 11 }}>
+                {netSavings >= 0
+                  ? `${savingsRate}% of total income retained as savings`
+                  : 'Outflow exceeded total income for this period'}
+              </Text>
+              <Text
+                variant="xs"
+                weight="bold"
+                style={{ color: netSavings >= 0 ? heroEmerald : heroCoral, fontSize: 11 }}
+              >
+                {netSavings >= 0 ? 'Surplus' : 'Deficit'}
+              </Text>
+            </View>
+          </View>
 
+          <View style={[styles.divider, { backgroundColor: heroMutedBorder }]} />
+
+          {/* 3-Column Metrics Strip: Income | Expenses | Daily Avg */}
           <View style={styles.inOutRow}>
+            {/* 1. Income Column */}
             <View style={styles.inOutItem}>
               <View style={styles.iconDotRow}>
-                <View style={[styles.miniDot, { backgroundColor: colors.successMuted }]}>
-                  <ArrowDownLeft size={11} color={colors.positive} />
+                <View style={[styles.miniDot, { backgroundColor: 'rgba(52, 211, 153, 0.18)' }]}>
+                  <ArrowDownLeft size={12} color={heroEmerald} strokeWidth={2.4} />
                 </View>
-                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                <Text variant="xs" weight="semibold" style={{ color: heroSubText, fontSize: 11 }}>
                   Income
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ color: colors.positive, marginTop: 4 }}>
-                {formatCurrency(totalIncome, currency)}
+              <Text variant="sm" weight="extrabold" style={{ color: heroEmerald, marginTop: 4, fontSize: 13 }}>
+                +{formatCurrency(totalIncome, currency)}
               </Text>
             </View>
 
-            <View style={[styles.vLine, { backgroundColor: colors.borderLight }]} />
+            <View style={[styles.vLine, { backgroundColor: heroMutedBorder }]} />
 
+            {/* 2. Expenses Column */}
             <View style={styles.inOutItem}>
               <View style={styles.iconDotRow}>
-                <View style={[styles.miniDot, { backgroundColor: colors.expenseMuted }]}>
-                  <ArrowUpRight size={11} color={colors.negative} />
+                <View style={[styles.miniDot, { backgroundColor: 'rgba(251, 113, 133, 0.18)' }]}>
+                  <ArrowUpRight size={12} color={heroCoral} strokeWidth={2.4} />
                 </View>
-                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                <Text variant="xs" weight="semibold" style={{ color: heroSubText, fontSize: 11 }}>
                   Expenses
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ color: colors.negative, marginTop: 4 }}>
-                {formatCurrency(totalExpenses, currency)}
+              <Text variant="sm" weight="extrabold" style={{ color: heroCoral, marginTop: 4, fontSize: 13 }}>
+                -{formatCurrency(totalExpenses, currency)}
               </Text>
             </View>
 
-            <View style={[styles.vLine, { backgroundColor: colors.borderLight }]} />
+            <View style={[styles.vLine, { backgroundColor: heroMutedBorder }]} />
 
+            {/* 3. Daily Avg Column (Guaranteed 100% Crisp & High Contrast) */}
             <View style={styles.inOutItem}>
               <View style={styles.iconDotRow}>
-                <View style={[styles.miniDot, { backgroundColor: colors.primaryMuted }]}>
-                  <TrendingUp size={11} color={colors.primary} />
+                <View style={[styles.miniDot, { backgroundColor: 'rgba(203, 216, 126, 0.22)' }]}>
+                  <TrendingUp size={12} color={heroPistachio} strokeWidth={2.4} />
                 </View>
-                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                <Text variant="xs" weight="semibold" style={{ color: heroSubText, fontSize: 11 }}>
                   Daily Avg
                 </Text>
               </View>
-              <Text variant="sm" weight="bold" style={{ color: colors.mainText, marginTop: 4 }}>
-                {formatCurrency(totalExpenses / (period === 'week' ? 7 : period === 'month' ? 30 : 365), currency)}
+              <Text variant="sm" weight="extrabold" style={{ color: '#FFFFFF', marginTop: 4, fontSize: 13 }}>
+                {formatCurrency(dailyAvg, currency)}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Income vs Expenses Chart */}
+        {/* 3. Executive KPI Health Strip */}
+        <View style={styles.kpiRow}>
+          {/* Savings Health */}
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.kpiHeader}>
+              <ShieldCheck size={14} color={savingsRate >= 50 ? colors.positive : colors.primary} />
+              <Text variant="xs" color="secondary" style={styles.kpiLabel}>
+                Savings Health
+              </Text>
+            </View>
+            <Text
+              variant="md"
+              weight="extrabold"
+              style={{
+                color: savingsRate >= 50 ? colors.positive : colors.mainText,
+                marginTop: 2,
+              }}
+            >
+              {savingsRate}%
+            </Text>
+            <Text variant="xs" color="secondary" style={styles.kpiSub}>
+              {savingsRate >= 50 ? 'Optimal' : savingsRate >= 20 ? 'Healthy' : 'Needs Focus'}
+            </Text>
+          </View>
+
+          {/* Expense Ratio */}
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.kpiHeader}>
+              <PieChart size={14} color={colors.secondary} />
+              <Text variant="xs" color="secondary" style={styles.kpiLabel}>
+                Expense Ratio
+              </Text>
+            </View>
+            <Text variant="md" weight="extrabold" style={{ color: colors.mainText, marginTop: 2 }}>
+              {expenseRatio}%
+            </Text>
+            <Text variant="xs" color="secondary" style={styles.kpiSub}>
+              of total inflow
+            </Text>
+          </View>
+
+          {/* Daily Burn Rate */}
+          <View
+            style={[
+              styles.kpiCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.kpiHeader}>
+              <Zap size={14} color={colors.warning} />
+              <Text variant="xs" color="secondary" style={styles.kpiLabel}>
+                Daily Burn
+              </Text>
+            </View>
+            <Text variant="md" weight="extrabold" style={{ color: colors.mainText, marginTop: 2 }}>
+              {formatCurrency(dailyAvg, currency)}
+            </Text>
+            <Text variant="xs" color="secondary" style={styles.kpiSub}>
+              per day avg
+            </Text>
+          </View>
+        </View>
+
+        {/* 4. Cash Flow Trends Chart Card */}
         <View
           style={[
             styles.sectionCard,
@@ -359,22 +516,31 @@ export default function AnalyticsScreen() {
           ]}
         >
           <View style={styles.sectionTitleRow}>
-            <View style={[styles.sectionIconBadge, { backgroundColor: colors.primaryMuted }]}>
-              <TrendingUp size={15} color={colors.primary} />
+            <View style={styles.sectionTitleLeft}>
+              <View style={[styles.sectionIconBadge, { backgroundColor: colors.primaryMuted }]}>
+                <TrendingUp size={16} color={colors.primary} />
+              </View>
+              <View>
+                <Text variant="sm" weight="bold">
+                  Cash Flow Trends
+                </Text>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11, marginTop: 1 }}>
+                  Monthly comparison and savings trajectory
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text variant="sm" weight="bold">
-                Income vs Expenses Trends
-              </Text>
-              <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
-                Monthly comparison and savings trajectory
+
+            <View style={[styles.trendBadge, { backgroundColor: colors.successMuted }]}>
+              <Text variant="xs" weight="bold" style={{ color: colors.positive, fontSize: 11 }}>
+                Net: +{formatCurrency(netSavings, currency)}
               </Text>
             </View>
           </View>
+
           <IncomeExpenseChart data={chartData} height={180} />
         </View>
 
-        {/* Category Breakdown */}
+        {/* 5. Category Spending Breakdown */}
         {categoryBreakdown.length > 0 ? (
           <View
             style={[
@@ -387,43 +553,128 @@ export default function AnalyticsScreen() {
             ]}
           >
             <View style={styles.sectionTitleRow}>
-              <View style={[styles.sectionIconBadge, { backgroundColor: colors.primaryMuted }]}>
-                <PieChart size={15} color={colors.primary} />
+              <View style={styles.sectionTitleLeft}>
+                <View style={[styles.sectionIconBadge, { backgroundColor: colors.primaryMuted }]}>
+                  <PieChart size={16} color={colors.primary} />
+                </View>
+                <View>
+                  <Text variant="sm" weight="bold">
+                    Category Spending Breakdown
+                  </Text>
+                  <Text variant="xs" color="secondary" style={{ fontSize: 11, marginTop: 1 }}>
+                    Ranked by top expenditure
+                  </Text>
+                </View>
               </View>
-              <View>
-                <Text variant="sm" weight="bold">
-                  Category Spending Breakdown
-                </Text>
-                <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
-                  Ranked by top expenditure
+
+              <View style={[styles.trendBadge, { backgroundColor: colors.expenseMuted }]}>
+                <Text variant="xs" weight="bold" style={{ color: colors.negative, fontSize: 11 }}>
+                  {formatCurrency(totalExpenses, currency)} Total
                 </Text>
               </View>
             </View>
 
-            {categoryBreakdown.map((cat, idx) => (
-              <CategoryProgressRow
-                key={idx}
-                category={cat.categoryName}
-                amount={cat.amount}
-                percentage={cat.percentage}
-                color={cat.color}
-              />
-            ))}
+            <View style={styles.categoryList}>
+              {categoryBreakdown.map((cat, idx) => (
+                <View key={idx} style={styles.categoryItem}>
+                  <View style={styles.categoryHeader}>
+                    <View style={styles.categoryNameRow}>
+                      <View style={[styles.categoryIconCircle, { backgroundColor: `${cat.color}22` }]}>
+                        <CategoryIcon icon={cat.icon} color={cat.color} size="sm" />
+                      </View>
+                      <View>
+                        <Text variant="sm" weight="bold">
+                          {cat.categoryName}
+                        </Text>
+                        <Text variant="xs" color="secondary" style={{ fontSize: 10.5 }}>
+                          Rank #{idx + 1} outflow
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.categoryAmountRow}>
+                      <Text variant="sm" weight="extrabold">
+                        {formatCurrency(cat.amount, currency)}
+                      </Text>
+                      <View style={[styles.categoryPctBadge, { backgroundColor: `${cat.color}1E` }]}>
+                        <Text variant="xs" weight="bold" style={{ color: cat.color, fontSize: 11 }}>
+                          {cat.percentage}%
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Progress Bar */}
+                  <View
+                    style={[
+                      styles.categoryProgressTrack,
+                      {
+                        backgroundColor: isDark
+                          ? colors.elevatedSurface
+                          : '#EFF1F5',
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.categoryProgressBar,
+                        {
+                          backgroundColor: cat.color,
+                          width: `${Math.min(100, Math.max(5, cat.percentage))}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
 
-        {/* Financial Insights */}
+        {/* 6. Smart Financial Insights */}
         <View style={styles.insightsSection}>
           <View style={styles.insightsHeader}>
             <Sparkles size={16} color={colors.primary} />
             <Text variant="sm" weight="bold">
-              Automated Insights & Recommendations
+              Smart Financial Insights
             </Text>
           </View>
 
-          {DEMO_ANALYTICS_INSIGHTS.map((insight) => (
+          {/* Contextual Card 1: High Savings Rate */}
+          <View
+            style={[
+              styles.insightCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.insightTop}>
+              <View style={styles.insightBadgeRow}>
+                <View style={[styles.insightPill, { backgroundColor: colors.successMuted }]}>
+                  <Text variant="xs" weight="bold" style={{ color: colors.positive, fontSize: 10.5 }}>
+                    SAVINGS CHAMPION
+                  </Text>
+                </View>
+              </View>
+              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                {savingsRate}% Retained
+              </Text>
+            </View>
+            <Text variant="xs" weight="bold" style={{ marginTop: 6, fontSize: 12.5 }}>
+              Exceptional Savings Trajectory
+            </Text>
+            <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 2, fontSize: 11.5 }}>
+              You retained {formatCurrency(netSavings, currency)} of your earnings this period. Your savings rate
+              of {savingsRate}% is far higher than the standard 20% savings rule.
+            </Text>
+          </View>
+
+          {/* Contextual Card 2: Top Outflow Category */}
+          {categoryBreakdown.length > 0 ? (
             <View
-              key={insight.id}
               style={[
                 styles.insightCard,
                 {
@@ -434,15 +685,58 @@ export default function AnalyticsScreen() {
               ]}
             >
               <View style={styles.insightTop}>
-                <Text variant="xs" weight="bold" color="primary" style={{ letterSpacing: 0.5 }}>
-                  {insight.title.toUpperCase()}
+                <View style={styles.insightBadgeRow}>
+                  <View style={[styles.insightPill, { backgroundColor: colors.expenseMuted }]}>
+                    <Text variant="xs" weight="bold" style={{ color: colors.negative, fontSize: 10.5 }}>
+                      TOP OUTFLOW
+                    </Text>
+                  </View>
+                </View>
+                <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                  {categoryBreakdown[0].percentage}% of spend
                 </Text>
               </View>
-              <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 4 }}>
-                {insight.description}
+              <Text variant="xs" weight="bold" style={{ marginTop: 6, fontSize: 12.5 }}>
+                {categoryBreakdown[0].categoryName} is Your Primary Expense
+              </Text>
+              <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 2, fontSize: 11.5 }}>
+                {formatCurrency(categoryBreakdown[0].amount, currency)} was allocated to{' '}
+                {categoryBreakdown[0].categoryName}. Monitoring discretionary spending in this category will optimize your liquidity.
               </Text>
             </View>
-          ))}
+          ) : null}
+
+          {/* Contextual Card 3: Daily Pace */}
+          <View
+            style={[
+              styles.insightCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.insightTop}>
+              <View style={styles.insightBadgeRow}>
+                <View style={[styles.insightPill, { backgroundColor: colors.primaryMuted }]}>
+                  <Text variant="xs" weight="bold" color="primary" style={{ fontSize: 10.5 }}>
+                    SPENDING VELOCITY
+                  </Text>
+                </View>
+              </View>
+              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
+                Pace Control
+              </Text>
+            </View>
+            <Text variant="xs" weight="bold" style={{ marginTop: 6, fontSize: 12.5 }}>
+              Controlled Daily Average
+            </Text>
+            <Text variant="xs" color="secondary" style={{ lineHeight: 18, marginTop: 2, fontSize: 11.5 }}>
+              Your average outflow is {formatCurrency(dailyAvg, currency)} per day. Continuing at this pace ensures
+              consistent month-end surplus.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -464,7 +758,7 @@ const styles = StyleSheet.create({
   },
   periodTabs: {
     flexDirection: 'row',
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
     padding: 3,
     marginBottom: Spacing.md,
@@ -474,7 +768,14 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.full,
+  },
+  activeTabShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   summaryCard: {
     padding: Spacing.lg,
@@ -483,8 +784,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   summarySubLabel: {
-    letterSpacing: 0.8,
-    fontSize: 11,
+    letterSpacing: 0.9,
+    fontSize: 10.5,
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -492,9 +793,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   savingsRatePill: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
     borderRadius: BorderRadius.full,
+  },
+  savingsProgressSection: {
+    marginTop: Spacing.md,
+    gap: 6,
+  },
+  savingsProgressTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  savingsProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  savingsProgressMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   divider: {
     height: 1,
@@ -521,8 +841,33 @@ const styles = StyleSheet.create({
   },
   vLine: {
     width: 1,
-    height: 36,
-    marginHorizontal: Spacing.md,
+    height: 38,
+    marginHorizontal: Spacing.sm + 2,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  kpiCard: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    justifyContent: 'space-between',
+  },
+  kpiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  kpiLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+  },
+  kpiSub: {
+    fontSize: 10.5,
+    marginTop: 2,
   },
   sectionCard: {
     padding: Spacing.lg,
@@ -532,16 +877,71 @@ const styles = StyleSheet.create({
   },
   sectionTitleRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 10,
     marginBottom: Spacing.md,
   },
+  sectionTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
   sectionIconBadge: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  trendBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: BorderRadius.full,
+  },
+  categoryList: {
+    gap: Spacing.md,
+  },
+  categoryItem: {
+    width: '100%',
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  categoryNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  categoryIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  categoryPctBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  categoryProgressTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  categoryProgressBar: {
+    height: '100%',
+    borderRadius: 3,
   },
   insightsSection: {
     marginTop: Spacing.xs,
@@ -562,5 +962,16 @@ const styles = StyleSheet.create({
   insightTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  insightBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  insightPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
 });

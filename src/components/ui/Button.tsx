@@ -6,6 +6,7 @@ import {
   View,
   ViewStyle,
   TextStyle,
+  StyleProp,
 } from 'react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { BorderRadius, Spacing, Typography } from '../../theme/tokens';
@@ -24,9 +25,9 @@ export interface ButtonProps {
   icon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
-  buttonStyle?: ViewStyle;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  buttonStyle?: StyleProp<ViewStyle>;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
   onPress?: (e?: any) => void | Promise<any>;
   accessibilityLabel?: string;
 }

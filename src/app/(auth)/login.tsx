@@ -22,7 +22,6 @@ import {
   Mail,
   Lock,
   ArrowRight,
-  KeyRound,
   ShieldCheck,
 } from 'lucide-react-native';
 
@@ -37,7 +36,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const isCompactHeight = height < 700;
+  const isCompactHeight = height < 740;
 
   const {
     control,
@@ -71,24 +70,28 @@ export default function LoginScreen() {
     }
   };
 
-  const inputSurface = isDark ? colors.elevatedSurface : colors.background;
+  const inputSurface = isDark ? colors.elevatedSurface : '#F4F5FA';
 
   return (
     <AuthShell
       eyebrow="ACCOUNT ACCESS"
       title="Welcome back"
       subtitle="Access your accounts, budgets & shared splits."
-      icon={<KeyRound size={16} color={colors.primary} />}
-      imageSource={require('../../../assets/images/auth/auth-security.jpg')}
+      illustrationSource={require('../../../assets/images/auth/sign_in.png')}
       activeTab="login"
       compactSpacing={isCompactHeight}
       errorMessage={errorMessage}
       footer={
-        <View style={styles.trustRow}>
-          <ShieldCheck size={13} color={colors.tertiaryText} />
-          <Text variant="xs" color="tertiary" style={styles.trustText}>
-            End-to-end TLS · Row-level security
+        <View style={styles.footerContainer}>
+          <Text variant="xs" style={styles.orText}>
+            or
           </Text>
+          <View style={styles.trustRow}>
+            <ShieldCheck size={14} color="#6B7280" strokeWidth={1.8} />
+            <Text variant="xs" style={styles.trustText}>
+              End-to-end TLS · Row-level security
+            </Text>
+          </View>
         </View>
       }
     >
@@ -99,6 +102,7 @@ export default function LoginScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Email Address"
+              labelIcon={<Mail size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="name@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -111,7 +115,7 @@ export default function LoginScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.email?.message}
-              leftIcon={<Mail size={16} color={colors.secondaryText} strokeWidth={1.75} />}
+              leftIcon={<Mail size={16} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -122,12 +126,13 @@ export default function LoginScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Password"
+              labelIcon={<Lock size={13} color={colors.primary} strokeWidth={2} />}
               labelRight={
                 <TouchableOpacity
                   onPress={() => router.push('/(auth)/forgot-password')}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text variant="xs" color={colors.primary} weight="semibold">
+                  <Text variant="xs" weight="bold" style={{ color: colors.primary }}>
                     Forgot password?
                   </Text>
                 </TouchableOpacity>
@@ -142,7 +147,7 @@ export default function LoginScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.password?.message}
-              leftIcon={<Lock size={16} color={colors.secondaryText} strokeWidth={1.75} />}
+              leftIcon={<Lock size={16} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -150,11 +155,18 @@ export default function LoginScreen() {
         <Button
           title="Sign In"
           variant="primary"
-          size={isCompactHeight ? 'md' : 'lg'}
+          size="lg"
           loading={loading}
           onPress={handleSubmit(onSubmit)}
-          rightIcon={<ArrowRight size={17} color={colors.onPrimary} />}
-          buttonStyle={styles.submitButton}
+          rightIcon={<ArrowRight size={17} color={colors.onPrimary} strokeWidth={2.4} />}
+          buttonStyle={[
+            styles.submitButton,
+            {
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+            },
+          ]}
+          textStyle={{ color: colors.onPrimary }}
         />
       </View>
     </AuthShell>
@@ -166,15 +178,32 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   submitButton: {
-    marginTop: Spacing.xs + 2,
+    marginTop: Spacing.sm,
+    backgroundColor: '#5B4DFC',
+    borderRadius: 26,
+    height: 52,
+    shadowColor: '#5B4DFC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  footerContainer: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  orText: {
+    color: '#9CA3AF',
+    fontSize: 12,
   },
   trustRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   trustText: {
-    fontSize: 11,
+    fontSize: 11.5,
+    color: '#6B7280',
   },
 });

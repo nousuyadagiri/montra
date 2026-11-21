@@ -2,7 +2,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import {
   ArrowDownLeft,
   ArrowLeftRight,
-  BarChart3,
+  ArrowUpRight,
+  Bell,
   LogIn,
   Plus,
   Sparkles,
@@ -25,7 +26,6 @@ import { CategoryProgressRow } from "../../components/charts/FinanceCharts";
 import {
   BalanceCard,
   DashboardSkeleton,
-  DemoDataBadge,
   EmptyState,
   ErrorState,
   Heading,
@@ -33,6 +33,7 @@ import {
   MonthlyOverview,
   QuickActionButton,
   Text,
+  CurrencyText,
   TransactionItem,
   TransactionsIllustration,
 } from "../../components/ui";
@@ -204,14 +205,21 @@ export default function HomeScreen() {
       user?.email?.split("@")[0] ||
       "Financier";
 
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p: string) => p[0]?.toUpperCase() || "")
+    .join("") || "M";
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: topInset + (Platform.OS === "android" ? 14 : 10),
-            paddingBottom: Spacing.xl,
+            paddingTop: topInset + (Platform.OS === "android" ? 12 : 8),
+            paddingBottom: insets.bottom + 85,
           },
         ]}
         refreshControl={
@@ -223,25 +231,63 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. TOP HEADER */}
+        {/* 1. TOP HEADER (Refined Apple & Fintech Aesthetic) */}
         <View style={styles.topHeader}>
-          <View style={styles.welcomeTextGroup}>
-            <Text
-              variant="xs"
-              color="secondary"
-              weight="semibold"
-              style={styles.greetingSub}
+          <View style={styles.headerLeftGroup}>
+            <TouchableOpacity
+              style={[
+                styles.avatarCircle,
+                { backgroundColor: isDark ? colors.elevatedSurface : "#1C1C1E" },
+              ]}
+              onPress={() => router.push("/(tabs)/profile")}
+              activeOpacity={0.8}
+              accessibilityLabel="View Profile"
             >
-              WELCOME BACK
-            </Text>
-            <Heading level={2} style={styles.userName} numberOfLines={1}>
-              {displayName}
-            </Heading>
+              <Text variant="xs" weight="bold" style={{ color: "#FFFFFF", fontSize: 13 }}>
+                {initials}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.welcomeTextGroup}>
+              <View style={styles.greetingRow}>
+                <Text
+                  variant="xs"
+                  color="secondary"
+                  weight="semibold"
+                  style={styles.greetingSub}
+                >
+                  FINANCIAL OVERVIEW
+                </Text>
+                {isDemo ? (
+                  <View style={styles.demoBadge}>
+                    <View style={styles.demoDot} />
+                    <Text variant="xs" weight="bold" style={styles.demoText}>
+                      DEMO
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Heading level={2} style={styles.userName} numberOfLines={1}>
+                {displayName}
+              </Heading>
+            </View>
           </View>
 
           <View style={styles.headerRightActions}>
-            {isDemo ? <DemoDataBadge /> : null}
+            {/* Quick Add '+' Button */}
+            <TouchableOpacity
+              style={[
+                styles.plusCircleBtn,
+                { backgroundColor: isDark ? colors.elevatedSurface : "#1C1C1E" },
+              ]}
+              onPress={() => router.push("/transactions/add")}
+              accessibilityLabel="Quick Add Transaction"
+              activeOpacity={0.8}
+            >
+              <Plus size={18} color="#FFFFFF" strokeWidth={2.4} />
+            </TouchableOpacity>
 
+            {/* Notifications Bell */}
             <TouchableOpacity
               style={[
                 styles.iconBtn,
@@ -251,13 +297,15 @@ export default function HomeScreen() {
                 },
               ]}
               onPress={() => router.push("/analytics")}
-              accessibilityLabel="View Analytics"
+              accessibilityLabel="Notifications"
             >
-              <BarChart3 size={17} color={colors.primary} />
+              <Bell size={17} color={colors.mainText} strokeWidth={2} />
+              <View style={[styles.notificationDot, { backgroundColor: colors.primary }]} />
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* Demo Mode Prompt Banner (Slim & Non-intrusive) */}
         {isDemo ? (
           <TouchableOpacity
             onPress={() => router.push("/(auth)/login")}
@@ -265,31 +313,30 @@ export default function HomeScreen() {
             style={[
               styles.demoPromptBanner,
               {
-                backgroundColor: colors.primaryMuted,
-                borderColor: colors.primary,
+                backgroundColor: isDark ? 'rgba(203, 216, 126, 0.12)' : '#F6F9EA',
+                borderColor: isDark ? 'rgba(203, 216, 126, 0.3)' : '#DCE8A8',
               },
             ]}
           >
             <View style={{ flex: 1 }}>
-              <Text variant="xs" weight="bold" color="primary">
+              <Text variant="xs" weight="bold" style={{ color: isDark ? '#D4E798' : '#5E6E16', fontSize: 11.5 }}>
                 Demo Mode Preview
               </Text>
-              <Text variant="xs" color="secondary" style={{ fontSize: 11 }}>
-                Sign in with your account to sync real-time finances across
-                devices.
+              <Text variant="xs" color="secondary" style={{ fontSize: 11, marginTop: 1 }}>
+                Sign in to sync your finances across all your devices.
               </Text>
             </View>
             <View
               style={[
                 styles.demoSignInChip,
-                { backgroundColor: colors.primary },
+                { backgroundColor: isDark ? '#D4E798' : '#1C1C1E' },
               ]}
             >
-              <LogIn size={12} color={colors.onPrimary} />
+              <LogIn size={11} color={isDark ? '#141416' : '#FFFFFF'} />
               <Text
                 variant="xs"
                 weight="bold"
-                style={{ color: colors.onPrimary, fontSize: 11 }}
+                style={{ color: isDark ? '#141416' : '#FFFFFF', fontSize: 11 }}
               >
                 Sign In
               </Text>
@@ -315,7 +362,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 3. HERO BALANCE CARD */}
+        {/* 3. HERO BALANCE CARD (Refined, Focused, Unified with Goal Progress) */}
         <BalanceCard
           totalBalance={metrics.totalBalance}
           monthlyIncome={metrics.monthlyIncome}
@@ -324,9 +371,103 @@ export default function HomeScreen() {
           savingsRate={metrics.savingsRate}
           currency={currency}
           onPressAnalytics={() => router.push("/analytics")}
+          showGoal={true}
+          targetAmount={Math.max(metrics.monthlyIncome, metrics.totalBalance * 1.5, 50000)}
+          onPressGoal={() => router.push("/(tabs)/budgets")}
+          showMetricsStrip={false}
         />
 
-        {/* 4. QUICK ACTIONS (Modern Unified Action Card) */}
+        {/* 4. CASH FLOW SUMMARY (Clean 3-Card Row: Income, Expenses, Savings) */}
+        <View style={styles.cashFlowRow}>
+          {/* Income Card */}
+          <View
+            style={[
+              styles.cashFlowCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.cashFlowTop}>
+              <View style={[styles.cashFlowIconCircle, { backgroundColor: colors.successMuted }]}>
+                <ArrowDownLeft size={12} color={colors.positive} strokeWidth={2.4} />
+              </View>
+              <Text variant="xs" weight="semibold" color="secondary" style={{ fontSize: 10.5 }}>
+                Income
+              </Text>
+            </View>
+            <CurrencyText
+              amount={metrics.monthlyIncome}
+              currency={currency}
+              variant="sm"
+              weight="extrabold"
+              style={{ color: colors.positive, marginTop: 3 }}
+            />
+          </View>
+
+          {/* Expenses Card */}
+          <View
+            style={[
+              styles.cashFlowCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.cashFlowTop}>
+              <View style={[styles.cashFlowIconCircle, { backgroundColor: colors.expenseMuted }]}>
+                <ArrowUpRight size={12} color={colors.negative} strokeWidth={2.4} />
+              </View>
+              <Text variant="xs" weight="semibold" color="secondary" style={{ fontSize: 10.5 }}>
+                Expenses
+              </Text>
+            </View>
+            <CurrencyText
+              amount={metrics.monthlyExpenses}
+              currency={currency}
+              variant="sm"
+              weight="extrabold"
+              style={{ color: colors.negative, marginTop: 3 }}
+            />
+          </View>
+
+          {/* Savings Card */}
+          <View
+            style={[
+              styles.cashFlowCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.cashFlowTop}>
+              <View style={[styles.cashFlowIconCircle, { backgroundColor: colors.primaryMuted }]}>
+                <TrendingUp size={12} color={colors.primary} strokeWidth={2.4} />
+              </View>
+              <Text variant="xs" weight="semibold" color="secondary" style={{ fontSize: 10.5 }}>
+                Savings
+              </Text>
+            </View>
+            <CurrencyText
+              amount={metrics.netSavings}
+              currency={currency}
+              variant="sm"
+              weight="extrabold"
+              style={{
+                color: metrics.netSavings >= 0 ? colors.mainText : colors.negative,
+                marginTop: 3,
+              }}
+            />
+          </View>
+        </View>
+
+        {/* 6. QUICK ACTIONS (Modern Apple-style squircle buttons) */}
         <View
           style={[
             styles.quickActionsCard,
@@ -334,7 +475,7 @@ export default function HomeScreen() {
               backgroundColor: colors.surface,
               borderColor: isDark ? colors.border : colors.borderLight,
               shadowColor: "#000",
-              shadowOffset: { width: 0, height: 3 },
+              shadowOffset: { width: 0, height: 2 },
               shadowOpacity: isDark ? 0.2 : 0.04,
               shadowRadius: 8,
               elevation: 2,
@@ -382,7 +523,170 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 5. SALARY OVERVIEW (Elevated Fintech Strip) */}
+        {/* 6. RECENT TRANSACTIONS */}
+        <View style={styles.recentTransactionsHeader}>
+          <Text variant="sm" weight="bold">
+            Recent Transactions
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/transactions")}>
+            <Text variant="xs" color="primary" weight="bold">
+              See All →
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {metrics.recentTransactions && metrics.recentTransactions.length > 0 ? (
+          <View
+            style={[
+              styles.transactionsCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            {metrics.recentTransactions.slice(0, 5).map((item, idx) => (
+              <TransactionItem
+                key={item.id}
+                transaction={item}
+                currency={currency}
+                onPress={() => router.push(`/transactions/${item.id}`)}
+                showDivider={
+                  idx < Math.min(metrics.recentTransactions.length, 5) - 1
+                }
+              />
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            illustration={<TransactionsIllustration size={130} />}
+            title="No Transactions Yet"
+            description="Tap '+ Expense' or '+ Income' above to record your first real transaction."
+          />
+        )}
+
+        {/* 7. SPENDING BREAKDOWN */}
+        {metrics.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
+          <View
+            style={[
+              styles.breakdownCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View style={styles.sectionHeaderRow}>
+              <Text variant="xs" weight="bold">
+                Top Spending
+              </Text>
+              <TouchableOpacity onPress={() => router.push("/analytics")}>
+                <Text
+                  variant="xs"
+                  color="secondary"
+                  weight="medium"
+                  style={{ fontSize: 11 }}
+                >
+                  All Categories →
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {metrics.categoryBreakdown.slice(0, 3).map((cat, idx) => (
+              <CategoryProgressRow
+                key={idx}
+                category={cat.categoryName}
+                amount={cat.amount}
+                percentage={cat.percentage}
+                color={cat.color}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {/* 8. INCOME VS EXPENSES VISUALIZATION */}
+        <View
+          style={[
+            styles.chartCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: isDark ? colors.border : colors.borderLight,
+            },
+            !isDark ? Shadows.sm : undefined,
+          ]}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.iconHeadingRow}>
+              <View
+                style={[
+                  styles.chartIconBadge,
+                  { backgroundColor: colors.secondaryMuted },
+                ]}
+              >
+                <TrendingUp size={14} color={colors.secondary} />
+              </View>
+              <Text variant="xs" weight="bold">
+                Income vs Expenses
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push("/analytics")}>
+              <Text
+                variant="xs"
+                color="secondary"
+                weight="medium"
+                style={{ fontSize: 11 }}
+              >
+                View Trends →
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <IncomeExpenseChart data={metrics.monthlyTrends || []} height={140} />
+        </View>
+
+        {/* 9. FINANCIAL INSIGHT */}
+        {isDemo ? (
+          <View
+            style={[
+              styles.insightBanner,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? colors.border : colors.borderLight,
+              },
+              !isDark ? Shadows.sm : undefined,
+            ]}
+          >
+            <View
+              style={[
+                styles.insightIconCircle,
+                { backgroundColor: colors.primaryMuted },
+              ]}
+            >
+              <Sparkles size={14} color={colors.primary} />
+            </View>
+            <View style={styles.insightTextGroup}>
+              <Text
+                variant="xs"
+                weight="bold"
+                color="primary"
+                style={{ fontSize: 10, letterSpacing: 0.8 }}
+              >
+                FINANCIAL INSIGHT
+              </Text>
+              <Text
+                variant="xs"
+                color="secondary"
+                style={{ lineHeight: 16, marginTop: 1, fontSize: 11.5 }}
+              >
+                {DEMO_ANALYTICS_INSIGHTS[0].description}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* 10. SALARY OVERVIEW (Elevated Fintech Strip) */}
         <View
           style={[
             styles.salaryCard,
@@ -475,169 +779,6 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
-
-        {/* 6. INCOME VS EXPENSES VISUALIZATION */}
-        <View
-          style={[
-            styles.chartCard,
-            {
-              backgroundColor: colors.surface,
-              borderColor: isDark ? colors.border : colors.borderLight,
-            },
-            !isDark ? Shadows.sm : undefined,
-          ]}
-        >
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.iconHeadingRow}>
-              <View
-                style={[
-                  styles.chartIconBadge,
-                  { backgroundColor: colors.secondaryMuted },
-                ]}
-              >
-                <TrendingUp size={14} color={colors.secondary} />
-              </View>
-              <Text variant="xs" weight="bold">
-                Income vs Expenses
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push("/analytics")}>
-              <Text
-                variant="xs"
-                color="secondary"
-                weight="medium"
-                style={{ fontSize: 11 }}
-              >
-                View Trends →
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <IncomeExpenseChart data={metrics.monthlyTrends || []} height={140} />
-        </View>
-
-        {/* 7. SPENDING BREAKDOWN */}
-        {metrics.categoryBreakdown && metrics.categoryBreakdown.length > 0 ? (
-          <View
-            style={[
-              styles.breakdownCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: isDark ? colors.border : colors.borderLight,
-              },
-              !isDark ? Shadows.sm : undefined,
-            ]}
-          >
-            <View style={styles.sectionHeaderRow}>
-              <Text variant="xs" weight="bold">
-                Top Spending
-              </Text>
-              <TouchableOpacity onPress={() => router.push("/analytics")}>
-                <Text
-                  variant="xs"
-                  color="secondary"
-                  weight="medium"
-                  style={{ fontSize: 11 }}
-                >
-                  All Categories →
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {metrics.categoryBreakdown.slice(0, 3).map((cat, idx) => (
-              <CategoryProgressRow
-                key={idx}
-                category={cat.categoryName}
-                amount={cat.amount}
-                percentage={cat.percentage}
-                color={cat.color}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {/* 8. FINANCIAL INSIGHT */}
-        {isDemo ? (
-          <View
-            style={[
-              styles.insightBanner,
-              {
-                backgroundColor: colors.surface,
-                borderColor: isDark ? colors.border : colors.borderLight,
-              },
-              !isDark ? Shadows.sm : undefined,
-            ]}
-          >
-            <View
-              style={[
-                styles.insightIconCircle,
-                { backgroundColor: colors.primaryMuted },
-              ]}
-            >
-              <Sparkles size={14} color={colors.primary} />
-            </View>
-            <View style={styles.insightTextGroup}>
-              <Text
-                variant="xs"
-                weight="bold"
-                color="primary"
-                style={{ fontSize: 10, letterSpacing: 0.8 }}
-              >
-                FINANCIAL INSIGHT
-              </Text>
-              <Text
-                variant="xs"
-                color="secondary"
-                style={{ lineHeight: 16, marginTop: 1, fontSize: 11.5 }}
-              >
-                {DEMO_ANALYTICS_INSIGHTS[0].description}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {/* 9. RECENT TRANSACTIONS */}
-        <View style={styles.recentTransactionsHeader}>
-          <Text variant="sm" weight="bold">
-            Recent Transactions
-          </Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/transactions")}>
-            <Text variant="xs" color="primary" weight="bold">
-              See All →
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {metrics.recentTransactions && metrics.recentTransactions.length > 0 ? (
-          <View
-            style={[
-              styles.transactionsCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: isDark ? colors.border : colors.borderLight,
-              },
-              !isDark ? Shadows.sm : undefined,
-            ]}
-          >
-            {metrics.recentTransactions.slice(0, 5).map((item, idx) => (
-              <TransactionItem
-                key={item.id}
-                transaction={item}
-                currency={currency}
-                onPress={() => router.push(`/transactions/${item.id}`)}
-                showDivider={
-                  idx < Math.min(metrics.recentTransactions.length, 5) - 1
-                }
-              />
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            illustration={<TransactionsIllustration size={130} />}
-            title="No Transactions Yet"
-            description="Tap '+ Expense' or '+ Income' above to record your first real transaction."
-          />
-        )}
       </ScrollView>
     </View>
   );
@@ -654,33 +795,105 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.sm,
+    gap: 12,
+  },
+  headerLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  avatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   welcomeTextGroup: {
     flex: 1,
-    paddingRight: Spacing.sm,
+  },
+  greetingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
   },
   greetingSub: {
-    fontSize: 10,
+    fontSize: 9.5,
     letterSpacing: 1.2,
-    marginBottom: 1,
+  },
+  demoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    backgroundColor: "rgba(203, 216, 126, 0.22)",
+  },
+  demoDot: {
+    width: 4.5,
+    height: 4.5,
+    borderRadius: 2.5,
+    backgroundColor: "#637410",
+  },
+  demoText: {
+    fontSize: 8.5,
+    fontWeight: "bold",
+    color: "#637410",
+    letterSpacing: 0.4,
   },
   userName: {
-    fontSize: 20,
+    fontSize: 18,
     letterSpacing: -0.4,
   },
   headerRightActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
+    gap: 8,
+  },
+  plusCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  notificationDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   demoPromptBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
-    borderRadius: BorderRadius.lg,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
     marginBottom: Spacing.sm,
   },
@@ -689,26 +902,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: BorderRadius.full,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
   },
   monthSelectorRow: {
     marginVertical: Spacing.xs,
     alignItems: "center",
   },
+  cashFlowRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: Spacing.sm + 2,
+  },
+  cashFlowCard: {
+    flex: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+  },
+  cashFlowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  cashFlowIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   quickActionsCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius["2xl"],
     borderWidth: 1,
@@ -782,6 +1011,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs + 2,
   },
   breakdownCard: {
+    marginTop: Spacing.md + 4,
     marginBottom: Spacing.sm + 4,
     padding: Spacing.md + 2,
     borderRadius: BorderRadius["2xl"],

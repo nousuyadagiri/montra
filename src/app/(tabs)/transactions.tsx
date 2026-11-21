@@ -32,6 +32,7 @@ import {
   TransactionsIllustration,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
+import { NEO_ACCENTS } from '../../theme/colors';
 import { exportTransactionsToCSV } from '../../utils/csvExport';
 import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
@@ -52,7 +53,7 @@ interface DateGroup {
 export default function TransactionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useAppTheme();
+  const { colors, isDark, themePalette } = useAppTheme();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -62,6 +63,18 @@ export default function TransactionsScreen() {
   const demoProfile = useDemoStore((s) => s.demoProfile);
 
   const [realTransactions, setRealTransactions] = useState<Transaction[]>([]);
+  const isDemo = !user;
+  const isNeo = themePalette === 'neo-pistachio';
+
+  const typeCounts = useMemo(() => {
+    const source = isDemo ? demoTransactions : realTransactions;
+    return {
+      all: source.length,
+      expense: source.filter((t) => t.type === 'expense').length,
+      income: source.filter((t) => t.type === 'income').length,
+      transfer: source.filter((t) => t.type === 'transfer').length,
+    };
+  }, [isDemo, demoTransactions, realTransactions]);
   const [categories, setCategories] = useState<TransactionCategory[]>([]);
   const [initialLoading, setInitialLoading] = useState(Boolean(user));
   const [refreshing, setRefreshing] = useState(false);
@@ -72,8 +85,6 @@ export default function TransactionsScreen() {
   const [selectedType, setSelectedType] = useState<string | undefined>(undefined);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
   const [selectedDateFilter] = useState<DateFilterOption>('all');
-
-  const isDemo = !user;
 
   const fetchTransactions = useCallback(async () => {
     if (!user) {
@@ -278,10 +289,23 @@ export default function TransactionsScreen() {
           style={styles.searchBar}
         />
 
-        {/* 3. TYPE FILTER PILLS (Segmented Row) */}
-        <View style={[styles.filterPillsRow, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+        {/* 3. TYPE FILTER PILLS (Segmented Capsule Row with Count Badges) */}
+        <View style={styles.filterPillsRow}>
           {TYPE_FILTERS.map((item) => {
             const isSelected = selectedType === item.value;
+            const count =
+              item.value === 'expense'
+                ? typeCounts.expense
+                : item.value === 'income'
+                ? typeCounts.income
+                : item.value === 'transfer'
+                ? typeCounts.transfer
+                : typeCounts.all;
+
+            const activePillBg = isNeo ? (isDark ? NEO_ACCENTS.pistachio : colors.primary) : colors.primary;
+            const activeTextColor = isNeo ? (isDark ? '#141416' : colors.onPrimary) : colors.onPrimary;
+            const inactivePillBg = isDark ? colors.elevatedSurface : NEO_ACCENTS.chipBgLight;
+
             return (
               <TouchableOpacity
                 key={item.label}
@@ -290,7 +314,8 @@ export default function TransactionsScreen() {
                 style={[
                   styles.filterPill,
                   {
-                    backgroundColor: isSelected ? colors.primary : 'transparent',
+                    backgroundColor: isSelected ? activePillBg : inactivePillBg,
+                    borderColor: isSelected ? 'transparent' : isDark ? colors.border : 'transparent',
                   },
                 ]}
               >
@@ -298,12 +323,37 @@ export default function TransactionsScreen() {
                   variant="xs"
                   weight={isSelected ? 'bold' : 'medium'}
                   style={{
-                    color: isSelected ? colors.onPrimary : colors.secondaryText,
+                    color: isSelected ? activeTextColor : colors.mainText,
                     fontSize: 11,
                   }}
                 >
                   {item.label}
                 </Text>
+                <View
+                  style={[
+                    styles.countBadge,
+                    {
+                      backgroundColor: isSelected
+                        ? isNeo
+                          ? '#FFFFFF'
+                          : 'rgba(255, 255, 255, 0.28)'
+                        : isDark
+                        ? '#2B2B34'
+                        : '#FFFFFF',
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="xs"
+                    weight="bold"
+                    style={{
+                      color: isSelected ? activeTextColor : colors.secondaryText,
+                      fontSize: 10,
+                    }}
+                  >
+                    {count}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -381,7 +431,7 @@ export default function TransactionsScreen() {
         keyExtractor={(group) => group.dateKey}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: Spacing.xl },
+          { paddingBottom: insets.bottom + 110 },
         ]}
         refreshControl={
           <RefreshControl
@@ -503,17 +553,27 @@ const styles = StyleSheet.create({
   },
   filterPillsRow: {
     flexDirection: 'row',
-    padding: 2.5,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: 6,
+    gap: 6,
+    marginBottom: 8,
   },
   filterPill: {
     flex: 1,
-    height: 28,
+    height: 32,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 6,
+    gap: 4,
+    borderWidth: 1,
+  },
+  countBadge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   catFilterScroll: {
     gap: 6,

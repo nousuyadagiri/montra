@@ -2,182 +2,14 @@ import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Platform, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { Home, ArrowLeftRight, LayoutGrid, Users, User } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { supabase } from '../../lib/supabase';
 
-type TabIconName = 'home' | 'transactions' | 'budgets' | 'split' | 'profile';
-
-interface TabIconProps {
-  name: TabIconName;
-  color: any;
-  focused: boolean;
-  activeBg: string;
-  cutoutColor: string;
-}
-
-function TabVectorIcon({
-  name,
-  color,
-  focused,
-  cutoutColor,
-}: {
-  name: TabIconName;
-  color: any;
-  focused: boolean;
-  cutoutColor: string;
-}) {
-  switch (name) {
-    case 'home':
-      return focused ? (
-        <Svg width={21} height={21} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M12.71 2.29a1 1 0 0 0-1.42 0l-8 7.5A1 1 0 0 0 3 10.5V20a2 2 0 0 0 2 2h4.25a.75.75 0 0 0 .75-.75v-5.5a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v5.5a.75.75 0 0 0 .75.75H19a2 2 0 0 0 2-2v-9.5a1 1 0 0 0-.29-.71l-8-7.5Z"
-            fill={color}
-          />
-        </Svg>
-      ) : (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M3 10.5 12 3l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1-.5-.5v-5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v5a.5.5 0 0 1-.5.5h-4A1.5 1.5 0 0 1 3 20v-9.5Z"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinejoin="round"
-          />
-        </Svg>
-      );
-
-    case 'transactions':
-      return focused ? (
-        <Svg width={21} height={21} viewBox="0 0 24 24" fill="none">
-          <Rect x={2.5} y={4.5} width={19} height={15} rx={4} fill={color} />
-          <Path
-            d="M7.5 10h9m0 0-2.1-2.1M16.5 10l-2.1 2.1M16.5 14.5h-9m0 0 2.1-2.1M7.5 14.5l2.1 2.1"
-            stroke={cutoutColor}
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
-      ) : (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Rect x={2.5} y={4.5} width={19} height={15} rx={4} stroke={color} strokeWidth={1.8} />
-          <Path
-            d="M7.5 10h9m0 0-2.1-2.1M16.5 10l-2.1 2.1M16.5 14.5h-9m0 0 2.1-2.1M7.5 14.5l2.1 2.1"
-            stroke={color}
-            strokeWidth={1.65}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
-      );
-
-    case 'budgets':
-      return focused ? (
-        <Svg width={21} height={21} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M11.2 3.05a9 9 0 1 0 9.75 9.75.75.75 0 0 0-.75-.8H12V3.8a.75.75 0 0 0-.8-.75Z"
-            fill={color}
-          />
-          <Path
-            d="M14 2.75a.75.75 0 0 1 .85-.74 9.03 9.03 0 0 1 7.14 7.14.75.75 0 0 1-.74.85H14.75a.75.75 0 0 1-.75-.75V2.75Z"
-            fill={color}
-          />
-        </Svg>
-      ) : (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M11.5 3.1A8.5 8.5 0 1 0 20.9 12.5H12a.5.5 0 0 1-.5-.5V3.1Z"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinejoin="round"
-          />
-          <Path
-            d="M14.3 2.55a8.5 8.5 0 0 1 7.15 7.15H14.3V2.55Z"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinejoin="round"
-          />
-        </Svg>
-      );
-
-    case 'split':
-      return focused ? (
-        <Svg width={21} height={21} viewBox="0 0 24 24" fill="none">
-          <Circle cx={9.5} cy={7.5} r={3.5} fill={color} />
-          <Path
-            d="M2.5 19.5c0-3.2 3.1-5.5 7-5.5s7 2.3 7 5.5c0 .55-.45 1-1 1h-12c-.55 0-1-.45-1-1Z"
-            fill={color}
-          />
-          <Circle cx={17} cy={8.5} r={2.6} fill={color} />
-          <Path
-            d="M16.5 14.3c2.7.35 5 2.05 5 4.9 0 .45-.35.8-.8.8H18c.08-.2.1-.4.1-.6 0-2.1-1-3.95-2.6-5.05.33-.05.66-.07 1-.05Z"
-            fill={color}
-          />
-        </Svg>
-      ) : (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Circle cx={9.5} cy={7.5} r={3.3} stroke={color} strokeWidth={1.8} />
-          <Path
-            d="M3 19.5c0-3 2.9-5 6.5-5s6.5 2 6.5 5"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinecap="round"
-          />
-          <Circle cx={16.8} cy={8.5} r={2.4} stroke={color} strokeWidth={1.7} />
-          <Path
-            d="M16.8 14.5c2.45.4 4.35 2 4.35 4.8"
-            stroke={color}
-            strokeWidth={1.7}
-            strokeLinecap="round"
-          />
-        </Svg>
-      );
-
-    case 'profile':
-      return focused ? (
-        <Svg width={21} height={21} viewBox="0 0 24 24" fill="none">
-          <Circle cx={12} cy={7.5} r={4} fill={color} />
-          <Path
-            d="M4 19.5c0-3.6 3.6-6 8-6s8 2.4 8 6c0 .83-.67 1.5-1.5 1.5h-13c-.83 0-1.5-.67-1.5-1.5Z"
-            fill={color}
-          />
-        </Svg>
-      ) : (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Circle cx={12} cy={7.5} r={3.8} stroke={color} strokeWidth={1.8} />
-          <Path
-            d="M4.5 20c0-3.3 3.35-5.5 7.5-5.5s7.5 2.2 7.5 5.5"
-            stroke={color}
-            strokeWidth={1.8}
-            strokeLinecap="round"
-          />
-        </Svg>
-      );
-  }
-}
-
-function TabPillIcon({ name, color, focused, activeBg, cutoutColor }: TabIconProps) {
-  return (
-    <View
-      style={{
-        width: 46,
-        height: 30,
-        borderRadius: 15,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: focused ? activeBg : 'transparent',
-      }}
-    >
-      <TabVectorIcon name={name} color={color} focused={focused} cutoutColor={cutoutColor} />
-    </View>
-  );
-}
-
 export default function TabLayout() {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const isInitialized = useAuthStore((s) => s.isInitialized);
@@ -237,38 +69,46 @@ export default function TabLayout() {
     );
   }
 
-  // Ensure bottom navigation bar on Android (3-button or gesture bar) and iOS home indicator
-  // have adequate padding so tab icons and labels are never overlapped.
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 4);
-  const tabHeight = 54 + bottomInset;
+  // Authentic Apple iOS Tab Bar: Translucent, docked at bottom edge with safe area insets
+  const bottomInset = insets.bottom;
+  const barHeight = Platform.OS === 'ios' ? 49 + bottomInset : 58 + (bottomInset > 0 ? bottomInset : 8);
+
+  const activeColor = colors.primary;
+  const inactiveColor = isDark ? '#8E8E93' : '#8E8E93'; // Apple system gray
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.secondaryText,
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.borderLight,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: barHeight,
+          backgroundColor: isDark ? 'rgba(18, 18, 22, 0.94)' : 'rgba(255, 255, 255, 0.92)',
           borderTopWidth: StyleSheet.hairlineWidth,
-          height: tabHeight,
-          paddingTop: 4,
-          paddingBottom: bottomInset,
+          borderTopColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+          paddingTop: 6,
+          paddingBottom: Math.max(bottomInset, Platform.OS === 'ios' ? 8 : 6),
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
+          shadowOpacity: isDark ? 0.25 : 0.06,
+          shadowRadius: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          letterSpacing: 0.15,
+          marginTop: 2,
         },
         tabBarItemStyle: {
           paddingVertical: 2,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10.5,
-          fontWeight: '600',
-          marginTop: 2,
         },
       }}
     >
@@ -277,28 +117,16 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <TabPillIcon
-              name="home"
-              color={color}
-              focused={focused}
-              activeBg={colors.primaryMuted}
-              cutoutColor={colors.surface}
-            />
+            <Home size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
           ),
         }}
       />
       <Tabs.Screen
         name="transactions"
         options={{
-          title: 'Transactions',
+          title: 'Activity',
           tabBarIcon: ({ color, focused }) => (
-            <TabPillIcon
-              name="transactions"
-              color={color}
-              focused={focused}
-              activeBg={colors.primaryMuted}
-              cutoutColor={colors.surface}
-            />
+            <ArrowLeftRight size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
           ),
         }}
       />
@@ -307,13 +135,7 @@ export default function TabLayout() {
         options={{
           title: 'Budgets',
           tabBarIcon: ({ color, focused }) => (
-            <TabPillIcon
-              name="budgets"
-              color={color}
-              focused={focused}
-              activeBg={colors.primaryMuted}
-              cutoutColor={colors.surface}
-            />
+            <LayoutGrid size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
           ),
         }}
       />
@@ -322,13 +144,7 @@ export default function TabLayout() {
         options={{
           title: 'Split',
           tabBarIcon: ({ color, focused }) => (
-            <TabPillIcon
-              name="split"
-              color={color}
-              focused={focused}
-              activeBg={colors.primaryMuted}
-              cutoutColor={colors.surface}
-            />
+            <Users size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
           ),
         }}
       />
@@ -337,13 +153,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <TabPillIcon
-              name="profile"
-              color={color}
-              focused={focused}
-              activeBg={colors.primaryMuted}
-              cutoutColor={colors.surface}
-            />
+            <User size={22} color={color} strokeWidth={focused ? 2.4 : 1.8} />
           ),
         }}
       />

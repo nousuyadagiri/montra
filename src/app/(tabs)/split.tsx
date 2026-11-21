@@ -28,6 +28,7 @@ import {
   SplitIllustration,
 } from '../../components/ui';
 import { Spacing, BorderRadius } from '../../theme/tokens';
+import { NEO_ACCENTS } from '../../theme/colors';
 import { formatCurrency } from '../../utils/currency';
 import { toast } from '../../store/toastStore';
 import { getErrorMessage } from '../../utils/errors';
@@ -35,7 +36,8 @@ import { getErrorMessage } from '../../utils/errors';
 export default function SplitScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark, themePalette } = useAppTheme();
+  const isNeo = themePalette === 'neo-pistachio';
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
   const syncTick = useSyncStore((s) => s.syncTick);
@@ -159,7 +161,7 @@ export default function SplitScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 16 : 12),
-            paddingBottom: Spacing.xl,
+            paddingBottom: insets.bottom + 110,
           },
         ]}
         refreshControl={
@@ -195,18 +197,25 @@ export default function SplitScreen() {
           style={[
             styles.summaryCard,
             {
-              backgroundColor: colors.surface,
-              borderColor: colors.borderLight,
+              backgroundColor: isNeo ? '#1C1C1E' : colors.surface,
+              borderColor: isNeo ? '#2C2C32' : colors.borderLight,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: colors.background === '#FFFFFF' ? 0.05 : 0.22,
+              shadowOpacity: isNeo ? 0.25 : colors.background === '#FFFFFF' ? 0.05 : 0.22,
               shadowRadius: 10,
               elevation: 2,
             },
           ]}
         >
           <View style={styles.summaryTop}>
-            <Text variant="xs" color="secondary" weight="bold" style={styles.summaryLabel}>
+            <Text
+              variant="xs"
+              weight="bold"
+              style={[
+                styles.summaryLabel,
+                { color: isNeo ? 'rgba(255, 255, 255, 0.65)' : colors.secondaryText },
+              ]}
+            >
               TOTAL SHARED BALANCE
             </Text>
             <View
@@ -215,9 +224,13 @@ export default function SplitScreen() {
                 {
                   backgroundColor:
                     netSplitBalance > 0
-                      ? colors.successMuted
+                      ? isNeo
+                        ? 'rgba(203, 216, 126, 0.16)'
+                        : colors.successMuted
                       : netSplitBalance < 0
                       ? colors.expenseMuted
+                      : isNeo
+                      ? '#2A2A30'
                       : colors.elevatedSurface,
                 },
               ]}
@@ -228,9 +241,13 @@ export default function SplitScreen() {
                 style={{
                   color:
                     netSplitBalance > 0
-                      ? colors.positive
+                      ? isNeo
+                        ? NEO_ACCENTS.pistachio
+                        : colors.positive
                       : netSplitBalance < 0
                       ? colors.negative
+                      : isNeo
+                      ? '#FFFFFF'
                       : colors.secondaryText,
                   fontSize: 11,
                 }}

@@ -35,7 +35,8 @@ export type ThemeName =
   | 'slate-blue'
   | 'aurora-teal'
   | 'claude-terracotta'
-  | 'gemini-celestial';
+  | 'gemini-celestial'
+  | 'neo-pistachio';
 
 export interface ThemeOption {
   id: ThemeName;
@@ -93,7 +94,30 @@ export const THEME_OPTIONS: ThemeOption[] = [
     previewColor: '#1A73E8',
     accentColor: '#8B5CF6',
   },
+  {
+    id: 'neo-pistachio',
+    name: 'Neo Pistachio',
+    description: 'Pistachio lime, soft lavender & obsidian slate',
+    previewBgLight: '#F7F8FA',
+    previewBgDark: '#101012',
+    previewColor: '#4E6308',
+    accentColor: '#645B9A',
+  },
 ];
+
+export const NEO_ACCENTS = {
+  pistachio: '#CBD87E',
+  pistachioLight: '#EBF0C8',
+  pistachioDark: '#4E6308',
+  lavender: '#A69FD2',
+  lavenderLight: '#DDD9F2',
+  lavenderDark: '#645B9A',
+  obsidian: '#1C1C1E',
+  obsidianLight: '#2A2A2E',
+  obsidianSurface: '#101012',
+  chipBgLight: '#F0F1F5',
+  chipBgDark: '#222226',
+};
 
 /* -------------------------------------------------------------
  * 1. ELECTRIC INDIGO (Default)
@@ -406,6 +430,73 @@ const GeminiCelestialPair = buildThemePair({
 });
 
 /* -------------------------------------------------------------
+ * 6. NEO PISTACHIO & LAVENDER (Crypto Noir)
+ * ------------------------------------------------------------- */
+export const NeoPistachioLight: ThemeColors = {
+  background: '#F7F8FA',
+  surface: '#FFFFFF',
+  elevatedSurface: '#EFF1F5',
+  primary: '#4E6308', // High-contrast accessible pistachio lime (contrast 5.4:1 on white)
+  primaryMuted: 'rgba(78, 99, 8, 0.12)', // Subtle elegant wash for icons & badges
+  onPrimary: '#FFFFFF',
+  accent: '#645B9A', // High-contrast lavender accent (contrast 5.0:1 on white)
+  softAccent: '#EDEAF8',
+  secondary: '#1C1C1E',
+  secondaryMuted: 'rgba(28, 28, 30, 0.08)',
+  onSecondary: '#FFFFFF',
+  mainText: '#141416',
+  secondaryText: '#525866', // Clear, readable secondary text
+  tertiaryText: '#7B8292',
+  border: '#D5D9E2', // Defined, visible borders
+  borderLight: '#E8ECF2',
+  error: '#E11D48',
+  errorMuted: 'rgba(225, 29, 72, 0.1)',
+  expense: '#E11D48',
+  expenseMuted: 'rgba(225, 29, 72, 0.1)',
+  success: '#1B7A3E',
+  successMuted: 'rgba(27, 122, 62, 0.12)',
+  warning: '#D97706',
+  warningMuted: 'rgba(217, 119, 6, 0.11)',
+  positive: '#1B7A3E',
+  negative: '#E11D48',
+  overlay: 'rgba(20, 20, 24, 0.56)',
+  cardGradientStart: '#FFFFFF',
+  cardGradientEnd: '#F7F8FA',
+};
+
+export const NeoPistachioDark: ThemeColors = {
+  background: '#101012',
+  surface: '#18181C',
+  elevatedSurface: '#222228',
+  primary: '#CBD87E',
+  primaryMuted: 'rgba(203, 216, 126, 0.16)',
+  onPrimary: '#121214',
+  accent: '#A69FD2',
+  softAccent: '#262235',
+  secondary: '#A69FD2',
+  secondaryMuted: 'rgba(166, 159, 210, 0.16)',
+  onSecondary: '#121214',
+  mainText: '#F7F7F8',
+  secondaryText: '#A0A0AB',
+  tertiaryText: '#696975',
+  border: '#2A2A32',
+  borderLight: '#1E1E24',
+  error: '#FB7185',
+  errorMuted: 'rgba(251, 113, 133, 0.16)',
+  expense: '#FB7185',
+  expenseMuted: 'rgba(251, 113, 133, 0.16)',
+  success: '#CBD87E',
+  successMuted: 'rgba(203, 216, 126, 0.16)',
+  warning: '#FBBF24',
+  warningMuted: 'rgba(251, 191, 36, 0.16)',
+  positive: '#CBD87E',
+  negative: '#FB7185',
+  overlay: 'rgba(0, 0, 0, 0.78)',
+  cardGradientStart: '#18181C',
+  cardGradientEnd: '#222228',
+};
+
+/* -------------------------------------------------------------
  * Dynamic Theme Resolver
  * ------------------------------------------------------------- */
 export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }> = {
@@ -420,6 +511,10 @@ export const THEMES: Record<ThemeName, { light: ThemeColors; dark: ThemeColors }
   'aurora-teal': AuroraTealPair,
   'claude-terracotta': ClaudeTerracottaPair,
   'gemini-celestial': GeminiCelestialPair,
+  'neo-pistachio': {
+    light: NeoPistachioLight,
+    dark: NeoPistachioDark,
+  },
 };
 
 export const getThemeColors = (themeName: ThemeName, isDark: boolean): ThemeColors => {

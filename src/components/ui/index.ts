@@ -24,3 +24,4 @@ export * from './DateFilter';
 export * from './Toast';
 export * from './FintechIllustrations';
 export * from './DatePickerField';
+export * from './NeoAssetCard';

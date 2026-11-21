@@ -17,10 +17,10 @@ import {
   Mail,
   Lock,
   User,
-  UserPlus,
   ArrowRight,
   ShieldCheck,
   Coins,
+  ChevronDown,
 } from 'lucide-react-native';
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -39,6 +39,7 @@ export default function RegisterScreen() {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
 
   const {
     control,
@@ -91,22 +92,21 @@ export default function RegisterScreen() {
     }
   };
 
-  const inputSurface = isDark ? colors.elevatedSurface : colors.background;
+  const inputSurface = isDark ? colors.elevatedSurface : '#F4F5FA';
 
   return (
     <AuthShell
       eyebrow="NEW WORKSPACE"
       title="Create account"
       subtitle="Set up your personal wealth & split workspace."
-      icon={<UserPlus size={16} color={colors.primary} />}
-      imageSource={require('../../../assets/images/auth/welcome-clarity.jpg')}
+      illustrationSource={require('../../../assets/images/auth/create_account.png')}
       activeTab="register"
       compactSpacing
       errorMessage={errorMessage}
       footer={
         <View style={styles.trustRow}>
-          <ShieldCheck size={13} color={colors.tertiaryText} />
-          <Text variant="xs" color="tertiary" style={styles.trustText}>
+          <ShieldCheck size={14} color="#6B7280" strokeWidth={1.8} />
+          <Text variant="xs" style={styles.trustText}>
             Private by design · Encrypted Supabase storage
           </Text>
         </View>
@@ -119,6 +119,7 @@ export default function RegisterScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Full Name"
+              labelIcon={<User size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="Alex Morgan"
               autoCapitalize="words"
               textContentType="name"
@@ -129,7 +130,7 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.fullName?.message}
-              leftIcon={<User size={15} color={colors.secondaryText} strokeWidth={1.75} />}
+              leftIcon={<User size={15} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -140,6 +141,7 @@ export default function RegisterScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Email Address"
+              labelIcon={<Mail size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="alex@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -152,7 +154,7 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.email?.message}
-              leftIcon={<Mail size={15} color={colors.secondaryText} strokeWidth={1.75} />}
+              leftIcon={<Mail size={15} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -163,6 +165,7 @@ export default function RegisterScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Password"
+              labelIcon={<Lock size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="Minimum 6 characters"
               isPassword
               compact
@@ -172,7 +175,7 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.password?.message}
-              leftIcon={<Lock size={15} color={colors.secondaryText} strokeWidth={1.75} />}
+              leftIcon={<Lock size={15} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
@@ -183,6 +186,7 @@ export default function RegisterScreen() {
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Confirm Password"
+              labelIcon={<ShieldCheck size={13} color={colors.primary} strokeWidth={2} />}
               placeholder="Re-enter password"
               isPassword
               compact
@@ -192,68 +196,109 @@ export default function RegisterScreen() {
               onChangeText={onChange}
               onBlur={onBlur}
               error={errors.confirmPassword?.message}
-              leftIcon={<ShieldCheck size={15} color={colors.secondaryText} strokeWidth={1.75} />}
+              leftIcon={<ShieldCheck size={15} color={colors.secondaryText} strokeWidth={1.8} />}
             />
           )}
         />
 
-        {/* Symmetric Minimalist Currency Selector */}
+        {/* Primary Currency (Reference Style Pill Selector) */}
         <Controller
           control={control}
           name="currency"
-          render={({ field: { value, onChange } }) => (
-            <View style={styles.currencyBlock}>
-              <View style={styles.currencyHeader}>
-                <Coins size={12} color={colors.secondaryText} />
-                <Text variant="xs" weight="medium" color="secondary" style={styles.currencyLabel}>
-                  Primary currency
-                </Text>
+          render={({ field: { value, onChange } }) => {
+            const currentCurrency = CURRENCIES.find((c) => c.code === value) ?? CURRENCIES[0];
+
+            return (
+              <View style={styles.currencyBlock}>
+                <View style={styles.currencyHeader}>
+                  <Coins size={13} color={colors.primary} strokeWidth={2} />
+                  <Text variant="xs" weight="medium" color="secondary" style={styles.currencyLabel}>
+                    Primary currency
+                  </Text>
+                </View>
+
+                {/* Primary currency pill button */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
+                  style={[
+                    styles.currencySelectorPill,
+                    {
+                      backgroundColor: inputSurface,
+                      borderColor: showCurrencyDropdown ? colors.primary : isDark ? colors.border : '#E5E7EB',
+                    },
+                  ]}
+                >
+                  <Text variant="sm" weight="bold" style={{ color: isDark ? '#FFFFFF' : '#141416' }}>
+                    {currentCurrency.symbol} {currentCurrency.code}
+                  </Text>
+                  <ChevronDown size={15} color={colors.secondaryText} />
+                </TouchableOpacity>
+
+                {/* Currency options list when expanded */}
+                {showCurrencyDropdown ? (
+                  <View
+                    style={[
+                      styles.currencyOptionsRow,
+                      {
+                        backgroundColor: inputSurface,
+                        borderColor: isDark ? colors.border : '#E5E7EB',
+                      },
+                    ]}
+                  >
+                    {CURRENCIES.map((curr) => {
+                      const isSelected = value === curr.code;
+                      return (
+                        <TouchableOpacity
+                          key={curr.code}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            onChange(curr.code);
+                            setShowCurrencyDropdown(false);
+                          }}
+                          style={[
+                            styles.currencyOptionTile,
+                            {
+                              backgroundColor: isSelected
+                                ? colors.primary
+                                : 'transparent',
+                            },
+                          ]}
+                        >
+                          <Text
+                            variant="xs"
+                            weight="bold"
+                            style={{
+                              color: isSelected ? colors.onPrimary : colors.secondaryText,
+                            }}
+                          >
+                            {curr.symbol} {curr.code}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
               </View>
-              <View style={styles.currencyPills}>
-                {CURRENCIES.map((curr) => {
-                  const isSelected = value === curr.code;
-                  return (
-                    <TouchableOpacity
-                      key={curr.code}
-                      activeOpacity={0.75}
-                      onPress={() => onChange(curr.code)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      style={[
-                        styles.currencyTile,
-                        {
-                          backgroundColor: isSelected
-                            ? colors.primaryMuted
-                            : inputSurface,
-                          borderColor: isSelected ? colors.primary : colors.border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        variant="xs"
-                        weight={isSelected ? 'bold' : 'medium'}
-                        style={{
-                          color: isSelected ? colors.primary : colors.mainText,
-                        }}
-                      >
-                        {curr.symbol} {curr.code}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
+            );
+          }}
         />
 
         <Button
           title="Create Account"
           variant="primary"
-          size="md"
+          size="lg"
           loading={loading}
           onPress={handleSubmit(onSubmit)}
-          rightIcon={<ArrowRight size={17} color={colors.onPrimary} />}
-          buttonStyle={styles.submitButton}
+          rightIcon={<ArrowRight size={17} color={colors.onPrimary} strokeWidth={2.4} />}
+          buttonStyle={[
+            styles.submitButton,
+            {
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+            },
+          ]}
+          textStyle={{ color: colors.onPrimary }}
         />
       </View>
     </AuthShell>
@@ -266,7 +311,7 @@ const styles = StyleSheet.create({
   },
   currencyBlock: {
     marginTop: 2,
-    marginBottom: Spacing.sm + 4,
+    marginBottom: Spacing.md,
   },
   currencyHeader: {
     flexDirection: 'row',
@@ -277,28 +322,49 @@ const styles = StyleSheet.create({
   currencyLabel: {
     fontSize: 12,
   },
-  currencyPills: {
+  currencySelectorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 46,
+    borderRadius: BorderRadius.md + 2,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+  },
+  currencyOptionsRow: {
     flexDirection: 'row',
     gap: 6,
-  },
-  currencyTile: {
-    flex: 1,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 6,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
+    marginTop: 6,
+  },
+  currencyOptionTile: {
+    flex: 1,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.sm,
   },
   submitButton: {
-    marginTop: 2,
+    marginTop: Spacing.xs,
+    backgroundColor: '#5B4DFC',
+    borderRadius: 26,
+    height: 52,
+    shadowColor: '#5B4DFC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
   },
   trustRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   trustText: {
-    fontSize: 11,
+    fontSize: 11.5,
+    color: '#6B7280',
   },
 });

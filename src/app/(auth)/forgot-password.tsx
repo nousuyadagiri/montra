@@ -21,11 +21,8 @@ import {
   Mail,
   Send,
   CheckCircle2,
-  KeyRound,
-  MailCheck,
+  ShieldCheck,
   ArrowRight,
-  Lock,
-  LogIn,
 } from 'lucide-react-native';
 
 type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
@@ -39,7 +36,7 @@ export default function ForgotPasswordScreen() {
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const isCompactHeight = height < 700;
+  const isCompactHeight = height < 740;
 
   const {
     control,
@@ -75,13 +72,7 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const inputSurface = isDark ? colors.elevatedSurface : colors.background;
-  const activeStep = submittedEmail ? 2 : 1;
-  const recoverySteps = [
-    { step: 1, label: 'Email' },
-    { step: 2, label: 'Verify' },
-    { step: 3, label: 'Reset' },
-  ];
+  const inputSurface = isDark ? colors.elevatedSurface : '#F4F5FA';
 
   return (
     <AuthShell
@@ -92,106 +83,38 @@ export default function ForgotPasswordScreen() {
           ? 'Follow the secure link in your email to set a new password.'
           : "Enter your registered email and we'll send recovery steps."
       }
-      icon={
-        submittedEmail ? (
-          <MailCheck size={16} color={colors.success} />
-        ) : (
-          <KeyRound size={16} color={colors.primary} />
-        )
-      }
-      imageSource={require('../../../assets/images/auth/auth-security.jpg')}
+      illustrationSource={require('../../../assets/images/auth/forgot_password.png')}
       compactSpacing={isCompactHeight}
       errorMessage={!submittedEmail ? errorMessage : null}
       footer={
         !submittedEmail ? (
-          <View style={styles.inlineFooter}>
-            <Text variant="sm" color="secondary">
-              Remembered your password?{' '}
+          <View style={styles.footerContainer}>
+            <Text variant="xs" style={styles.orText}>
+              or
             </Text>
-            <TouchableOpacity
-              onPress={() => router.replace('/(auth)/login')}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.footerLinkRow}
-            >
-              <LogIn size={14} color={colors.primary} />
-              <Text variant="sm" color={colors.primary} weight="bold">
-                Sign In
+            <View style={styles.trustRow}>
+              <ShieldCheck size={14} color="#6B7280" strokeWidth={1.8} />
+              <Text variant="xs" style={styles.trustText}>
+                Single-use link · Expires automatically for safety
               </Text>
-            </TouchableOpacity>
+            </View>
+            <View style={styles.loginLinkRow}>
+              <Text variant="xs" style={{ color: colors.secondaryText }}>
+                Remembered your password?{' '}
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.replace('/(auth)/login')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text variant="xs" weight="bold" style={{ color: colors.primary }}>
+                  → Sign In
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : undefined
       }
     >
-      {/* Minimalist 3-Step Recovery Progress Strip */}
-      <View style={[styles.stepTrack, { borderBottomColor: colors.borderLight }]}>
-        {recoverySteps.map((item, idx) => {
-          const isCurrent = item.step === activeStep;
-          const isCompleted = item.step < activeStep;
-          return (
-            <React.Fragment key={item.step}>
-              <View style={styles.stepItem}>
-                <View
-                  style={[
-                    styles.stepDot,
-                    {
-                      backgroundColor: isCompleted
-                        ? colors.success
-                        : isCurrent
-                        ? colors.primary
-                        : inputSurface,
-                      borderColor: isCompleted
-                        ? colors.success
-                        : isCurrent
-                        ? colors.primary
-                        : colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="xs"
-                    weight="bold"
-                    style={{
-                      fontSize: 10,
-                      color:
-                        isCurrent || isCompleted
-                          ? colors.onPrimary
-                          : colors.secondaryText,
-                    }}
-                  >
-                    {item.step}
-                  </Text>
-                </View>
-                <Text
-                  variant="xs"
-                  weight={isCurrent ? 'bold' : 'medium'}
-                  style={{
-                    fontSize: 11.5,
-                    color: isCurrent
-                      ? colors.mainText
-                      : isCompleted
-                      ? colors.success
-                      : colors.tertiaryText,
-                  }}
-                >
-                  {item.label}
-                </Text>
-              </View>
-              {idx < recoverySteps.length - 1 ? (
-                <View
-                  style={[
-                    styles.stepConnector,
-                    {
-                      backgroundColor:
-                        item.step < activeStep ? colors.success : colors.borderLight,
-                    },
-                  ]}
-                />
-              ) : null}
-            </React.Fragment>
-          );
-        })}
-      </View>
-
       {submittedEmail ? (
         <View style={styles.successBox}>
           <View
@@ -212,7 +135,7 @@ export default function ForgotPasswordScreen() {
               styles.emailPill,
               {
                 backgroundColor: inputSurface,
-                borderColor: colors.borderLight,
+                borderColor: isDark ? colors.border : '#E5E7EB',
               },
             ]}
           >
@@ -230,8 +153,16 @@ export default function ForgotPasswordScreen() {
             <Button
               title="Back to Sign In"
               variant="primary"
-              size={isCompactHeight ? 'md' : 'lg'}
+              size="lg"
               rightIcon={<ArrowRight size={17} color={colors.onPrimary} />}
+              buttonStyle={[
+                styles.submitButton,
+                {
+                  backgroundColor: colors.primary,
+                  shadowColor: colors.primary,
+                },
+              ]}
+              textStyle={{ color: colors.onPrimary }}
               onPress={() => router.replace('/(auth)/login')}
             />
             <Button
@@ -252,7 +183,8 @@ export default function ForgotPasswordScreen() {
             name="email"
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
-                label="Registered Email"
+                label="Email Address"
+                labelIcon={<Mail size={13} color={colors.primary} strokeWidth={2} />}
                 placeholder="name@example.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -265,7 +197,7 @@ export default function ForgotPasswordScreen() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 error={errors.email?.message}
-                leftIcon={<Mail size={16} color={colors.secondaryText} strokeWidth={1.75} />}
+                leftIcon={<Mail size={16} color={colors.secondaryText} strokeWidth={1.8} />}
               />
             )}
           />
@@ -273,19 +205,19 @@ export default function ForgotPasswordScreen() {
           <Button
             title="Send Recovery Link"
             variant="primary"
-            size={isCompactHeight ? 'md' : 'lg'}
+            size="lg"
             loading={loading}
             onPress={handleSubmit(onSubmit)}
-            leftIcon={<Send size={16} color={colors.onPrimary} />}
-            buttonStyle={styles.submitButton}
+            leftIcon={<Send size={16} color={colors.onPrimary} strokeWidth={2.2} />}
+            buttonStyle={[
+              styles.submitButton,
+              {
+                backgroundColor: colors.primary,
+                shadowColor: colors.primary,
+              },
+            ]}
+            textStyle={{ color: colors.onPrimary }}
           />
-
-          <View style={styles.securityTip}>
-            <Lock size={12} color={colors.tertiaryText} />
-            <Text variant="xs" color="tertiary" style={styles.securityTipText}>
-              Single-use link · Expires automatically for safety
-            </Text>
-          </View>
         </View>
       )}
     </AuthShell>
@@ -293,88 +225,72 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  stepTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: Spacing.md,
-    marginBottom: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stepDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepConnector: {
-    flex: 1,
-    height: 1,
-    marginHorizontal: 8,
-  },
   form: {
     width: '100%',
   },
   submitButton: {
-    marginTop: Spacing.xs + 2,
+    marginTop: Spacing.sm,
+    backgroundColor: '#5B4DFC',
+    borderRadius: 26,
+    height: 52,
+    shadowColor: '#5B4DFC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  securityTip: {
+  footerContainer: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  orText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+  },
+  trustRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    marginTop: Spacing.md,
+    gap: 6,
   },
-  securityTipText: {
-    fontSize: 11,
+  trustText: {
+    fontSize: 11.5,
+    color: '#6B7280',
+  },
+  loginLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
   successBox: {
     alignItems: 'center',
-    gap: Spacing.xs + 2,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
   },
   successHalo: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: Spacing.xs,
   },
   emailPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs + 2,
-    paddingVertical: Spacing.xs + 2,
+    gap: 6,
     paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
     borderRadius: BorderRadius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    maxWidth: '100%',
+    borderWidth: 1,
   },
   helperText: {
-    lineHeight: 17,
-    marginBottom: Spacing.sm,
-    maxWidth: 250,
+    marginTop: 2,
+    marginBottom: Spacing.md,
   },
   successActions: {
     width: '100%',
-    gap: Spacing.xs,
-  },
-  inlineFooter: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  footerLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    gap: Spacing.sm,
   },
 });

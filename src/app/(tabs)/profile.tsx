@@ -190,7 +190,7 @@ export default function ProfileScreen() {
           styles.scrollContent,
           {
             paddingTop: topInset + (Platform.OS === 'android' ? 14 : 10),
-            paddingBottom: Spacing.xl,
+            paddingBottom: insets.bottom + 110,
           },
         ]}
         showsVerticalScrollIndicator={false}

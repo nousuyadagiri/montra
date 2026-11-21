@@ -15,6 +15,7 @@ import { Eye, EyeOff } from 'lucide-react-native';
 
 export interface InputProps extends TextInputProps {
   label?: string;
+  labelIcon?: React.ReactNode;
   labelRight?: React.ReactNode;
   error?: string;
   leftIcon?: React.ReactNode;
@@ -29,6 +30,7 @@ export interface InputProps extends TextInputProps {
 
 export const Input: React.FC<InputProps> = ({
   label,
+  labelIcon,
   labelRight,
   error,
   leftIcon,
@@ -63,14 +65,17 @@ export const Input: React.FC<InputProps> = ({
       {label || labelRight ? (
         <View style={[styles.labelRow, compact && styles.labelRowCompact]}>
           {label ? (
-            <Text
-              variant={compact ? 'xs' : 'sm'}
-              weight="medium"
-              color="secondary"
-              style={styles.label}
-            >
-              {label}
-            </Text>
+            <View style={styles.labelGroup}>
+              {labelIcon ? <View style={styles.labelIconWrapper}>{labelIcon}</View> : null}
+              <Text
+                variant={compact ? 'xs' : 'sm'}
+                weight="medium"
+                color="secondary"
+                style={styles.label}
+              >
+                {label}
+              </Text>
+            </View>
           ) : (
             <View />
           )}
@@ -167,6 +172,15 @@ const styles = StyleSheet.create({
   },
   labelRowCompact: {
     marginBottom: 3,
+  },
+  labelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  labelIconWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   label: {
     flexShrink: 1,
