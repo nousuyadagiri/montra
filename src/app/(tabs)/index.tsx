@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Bell,
   LogIn,
+  MessageSquare,
   Plus,
   Sparkles,
   TrendingUp,
@@ -291,7 +292,24 @@ export default function HomeScreen() {
               <Plus size={18} color="#FFFFFF" strokeWidth={2.4} />
             </TouchableOpacity>
 
-            {/* Notifications Bell */}
+            {/* Chat & Messages Button */}
+            <TouchableOpacity
+              style={[
+                styles.iconBtn,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.borderLight,
+                },
+              ]}
+              onPress={() => router.push("/chat")}
+              accessibilityLabel="Messages & Chat"
+              activeOpacity={0.8}
+            >
+              <MessageSquare size={17} color={colors.mainText} strokeWidth={2} />
+              <View style={[styles.notificationDot, { backgroundColor: colors.primary }]} />
+            </TouchableOpacity>
+
+            {/* Analytics */}
             <TouchableOpacity
               style={[
                 styles.iconBtn,
@@ -301,10 +319,9 @@ export default function HomeScreen() {
                 },
               ]}
               onPress={() => router.push("/analytics")}
-              accessibilityLabel="Notifications"
+              accessibilityLabel="Financial Analytics"
             >
-              <Bell size={17} color={colors.mainText} strokeWidth={2} />
-              <View style={[styles.notificationDot, { backgroundColor: colors.primary }]} />
+              <TrendingUp size={17} color={colors.mainText} strokeWidth={2} />
             </TouchableOpacity>
           </View>
         </View>

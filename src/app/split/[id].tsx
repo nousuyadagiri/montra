@@ -14,6 +14,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useDemoStore } from '../../store/demoStore';
 import { useSyncStore } from '../../store/syncStore';
 import { splitService, GroupDetailsData } from '../../services/splitService';
+import { chatService, isValidUUID } from '../../services/chatService';
 import {
   Text,
   Card,
@@ -47,6 +48,7 @@ import {
   Coffee,
   Film,
   Fuel,
+  MessageSquare,
 } from 'lucide-react-native';
 
 const AVATAR_PALETTES = [
@@ -259,6 +261,12 @@ export default function GroupDetailScreen() {
   const deleteDemoGroup = useDemoStore((s) => s.deleteDemoGroup);
   const deleteDemoGroupExpense = useDemoStore((s) => s.deleteDemoGroupExpense);
   const deleteDemoSettlement = useDemoStore((s) => s.deleteDemoSettlement);
+  const getOrCreateDemoDirectConversation = useDemoStore(
+    (s) => s.getOrCreateDemoDirectConversation
+  );
+  const getOrCreateDemoGroupConversation = useDemoStore(
+    (s) => s.getOrCreateDemoGroupConversation
+  );
 
   const isDemo = !user || (id?.startsWith('demo-') ?? false);
 
@@ -608,8 +616,8 @@ export default function GroupDetailScreen() {
               activeOpacity={0.8}
               style={[styles.heroPrimaryBtn, { backgroundColor: colors.primary }]}
             >
-              <Plus size={16} color={colors.onPrimary} strokeWidth={2.5} />
-              <Text variant="sm" weight="bold" style={{ color: colors.onPrimary, marginLeft: 6 }}>
+              <Plus size={15} color={colors.onPrimary} strokeWidth={2.5} />
+              <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, marginLeft: 4 }}>
                 Add Expense
               </Text>
             </TouchableOpacity>
@@ -625,9 +633,40 @@ export default function GroupDetailScreen() {
                 },
               ]}
             >
-              <HandCoins size={16} color={colors.primary} strokeWidth={2.2} />
-              <Text variant="sm" weight="bold" style={{ color: colors.primary, marginLeft: 6 }}>
+              <HandCoins size={15} color={colors.primary} strokeWidth={2.2} />
+              <Text variant="xs" weight="bold" style={{ color: colors.primary, marginLeft: 4 }}>
                 Settle Up
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={async () => {
+                if (isDemo || !isValidUUID(group.id)) {
+                  const convId = getOrCreateDemoGroupConversation(group.name, group.id);
+                  router.push(`/chat/${convId}`);
+                  return;
+                }
+                try {
+                  const convId = await chatService.getOrCreateGroupConversation(group.id, user!.id);
+                  router.push(`/chat/${convId}`);
+                } catch {
+                  const convId = getOrCreateDemoGroupConversation(group.name, group.id);
+                  router.push(`/chat/${convId}`);
+                }
+              }}
+              activeOpacity={0.8}
+              style={[
+                styles.heroSecondaryBtn,
+                {
+                  backgroundColor: colors.primaryMuted,
+                  borderColor: isDark ? colors.border : colors.borderLight,
+                  flex: 0.8,
+                },
+              ]}
+            >
+              <MessageSquare size={15} color={colors.primary} strokeWidth={2.2} />
+              <Text variant="xs" weight="bold" style={{ color: colors.primary, marginLeft: 4 }}>
+                Chat
               </Text>
             </TouchableOpacity>
           </View>
@@ -933,6 +972,38 @@ export default function GroupDetailScreen() {
                           : 'Settled'}
                       </Text>
                     </View>
+
+                    {!mb.isCurrentUser && (
+                      <TouchableOpacity
+                        style={[styles.memberChatBtn, { backgroundColor: colors.primaryMuted }]}
+                        onPress={async () => {
+                          const memberRecord = members.find((m) => m.id === mb.memberId);
+                          const targetUserId = memberRecord?.user_id;
+                          const memberName = mb.memberName;
+
+                          if (isDemo || !targetUserId || !isValidUUID(targetUserId)) {
+                            const convId = getOrCreateDemoDirectConversation(
+                              targetUserId || `demo-member-${mb.memberId}`,
+                              memberName
+                            );
+                            router.push(`/chat/${convId}`);
+                            return;
+                          }
+
+                          try {
+                            const convId = await chatService.getOrCreateDirectConversation(user!.id, targetUserId);
+                            router.push(`/chat/${convId}`);
+                          } catch {
+                            const convId = getOrCreateDemoDirectConversation(targetUserId, memberName);
+                            router.push(`/chat/${convId}`);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                        accessibilityLabel={`Chat with ${mb.memberName}`}
+                      >
+                        <MessageSquare size={13} color={colors.primary} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {idx < memberBalances.length - 1 && (
                     <View
@@ -1445,6 +1516,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: BorderRadius.full,
+  },
+  memberChatBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
   },
   divider: {
     height: 1,

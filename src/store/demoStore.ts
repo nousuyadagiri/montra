@@ -19,6 +19,9 @@ import {
   DEMO_BUDGET,
   DEMO_SAVINGS_GOALS,
   DEMO_SPLIT_GROUPS,
+  DEMO_USERS,
+  DEMO_CONVERSATIONS,
+  DEMO_MESSAGES,
 } from '../services/demoData';
 import { DashboardMetrics } from '../services/dashboardService';
 import { BudgetWithSpending, CreateBudgetInput } from '../services/budgetService';
@@ -265,6 +268,19 @@ interface DemoState {
   // Computed Metrics
   getDemoDashboardMetrics: (year?: number, month?: number) => DashboardMetrics;
   getDemoAnalytics: (period?: 'week' | 'month' | 'year', year?: number, month?: number) => AnalyticsSummary;
+
+  // Chat & Money Conversations
+  demoConversations: any[];
+  demoMessages: Record<string, any[]>;
+  getDemoConversations: () => any[];
+  getDemoMessages: (conversationId: string) => any[];
+  addDemoMessage: (conversationId: string, input: { content: string; type?: any; metadata?: any; senderId?: string }) => any;
+  sendDemoMoneyRequest: (conversationId: string, input: { recipientId: string; amount: number; notes?: string; senderId?: string }) => any;
+  respondDemoMoneyRequest: (conversationId: string, requestId: string, action: any, responderId?: string) => void;
+  markDemoConversationRead: (conversationId: string) => void;
+  getOrCreateDemoDirectConversation: (otherUserId: string, otherUserName?: string, currentUserId?: string) => string;
+  getOrCreateDemoGroupConversation: (groupName: string, groupId?: string) => string;
+
   resetDemoData: () => void;
 }
 
@@ -294,6 +310,8 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   demoGroups: DEMO_SPLIT_GROUPS.map((g) => ({ ...g, members: g.members ? [...g.members] : [] })),
   demoGroupExpenses: createInitialDemoGroupExpenses(),
   demoGroupSettlements: {},
+  demoConversations: [...DEMO_CONVERSATIONS],
+  demoMessages: { ...DEMO_MESSAGES },
 
   updateDemoProfile: (updates) =>
     set((state) => ({
@@ -1102,6 +1120,254 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     };
   },
 
+  getDemoConversations: () => get().demoConversations,
+
+  getDemoMessages: (conversationId: string) => {
+    return get().demoMessages[conversationId] || [];
+  },
+
+  addDemoMessage: (
+    conversationId: string,
+    input: { content: string; type?: any; metadata?: any; senderId?: string }
+  ) => {
+    const sender = input.senderId || DEMO_PROFILE.id;
+    const newMsg = {
+      id: makeDemoId('msg'),
+      conversation_id: conversationId,
+      sender_id: sender,
+      message_type: input.type || 'text',
+      content: input.content,
+      metadata: input.metadata || {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'delivered',
+    };
+
+    set((state) => {
+      const existing = state.demoMessages[conversationId] || [];
+      const updatedMessages = {
+        ...state.demoMessages,
+        [conversationId]: [...existing, newMsg],
+      };
+
+      const updatedConvs = state.demoConversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        return {
+          ...c,
+          last_message_at: newMsg.created_at,
+          last_message_preview: input.content.slice(0, 100),
+        };
+      });
+
+      return {
+        demoMessages: updatedMessages,
+        demoConversations: updatedConvs,
+      };
+    });
+
+    return newMsg;
+  },
+
+  sendDemoMoneyRequest: (
+    conversationId: string,
+    input: { recipientId: string; amount: number; notes?: string; senderId?: string }
+  ) => {
+    const requestId = makeDemoId('req');
+    const sender = input.senderId || DEMO_PROFILE.id;
+    const msg = {
+      id: makeDemoId('msg'),
+      conversation_id: conversationId,
+      sender_id: sender,
+      message_type: 'money_request',
+      content: `Requested ₹${input.amount}${input.notes ? `: "${input.notes}"` : ''}`,
+      metadata: {
+        request_id: requestId,
+        amount: input.amount,
+        currency: 'INR',
+        status: 'pending',
+        requester_id: sender,
+        recipient_id: input.recipientId,
+        notes: input.notes || null,
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'delivered',
+    };
+
+    set((state) => {
+      const existing = state.demoMessages[conversationId] || [];
+      return {
+        demoMessages: {
+          ...state.demoMessages,
+          [conversationId]: [...existing, msg],
+        },
+        demoConversations: state.demoConversations.map((c) =>
+          c.id === conversationId
+            ? { ...c, last_message_at: msg.created_at, last_message_preview: msg.content }
+            : c
+        ),
+      };
+    });
+
+    return msg;
+  },
+
+  respondDemoMoneyRequest: (
+    conversationId: string,
+    requestId: string,
+    action: any,
+    responderId?: string
+  ) => {
+    const activeResponder = responderId || DEMO_PROFILE.id;
+    set((state) => {
+      const existing = state.demoMessages[conversationId] || [];
+      let reqAmount = 500;
+      let otherId = 'demo-user-priya';
+
+      const updated = existing.map((m) => {
+        if (m.message_type === 'money_request' && m.metadata?.request_id === requestId) {
+          reqAmount = m.metadata.amount || 500;
+          otherId = m.metadata.requester_id || otherId;
+          return {
+            ...m,
+            metadata: {
+              ...m.metadata,
+              status: action,
+            },
+          };
+        }
+        return m;
+      });
+
+      if (action === 'paid') {
+        updated.push({
+          id: makeDemoId('msg'),
+          conversation_id: conversationId,
+          sender_id: activeResponder,
+          message_type: 'payment_update',
+          content: `Marked ₹${reqAmount} as paid`,
+          metadata: {
+            request_id: requestId,
+            amount: reqAmount,
+            currency: 'INR',
+            sender_id: activeResponder,
+            recipient_id: otherId,
+            is_verified: true,
+          },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'delivered',
+        });
+      }
+
+      return {
+        demoMessages: {
+          ...state.demoMessages,
+          [conversationId]: updated,
+        },
+      };
+    });
+  },
+
+  markDemoConversationRead: (conversationId: string) => {
+    set((state) => ({
+      demoConversations: state.demoConversations.map((c) =>
+        c.id === conversationId ? { ...c, unread_count: 0 } : c
+      ),
+    }));
+  },
+
+  getOrCreateDemoDirectConversation: (
+    otherUserId: string,
+    otherUserName?: string,
+    currentUserId?: string
+  ) => {
+    const state = get();
+    const cleanId = otherUserId.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const existing = state.demoConversations.find(
+      (c) =>
+        c.type === 'direct' &&
+        (c.other_participant?.id === otherUserId ||
+          c.other_participant?.id === `demo-user-${cleanId}` ||
+          (otherUserName && c.other_participant?.full_name?.toLowerCase() === otherUserName.toLowerCase()))
+    );
+    if (existing) return existing.id;
+
+    const matchedDemoUser = DEMO_USERS.find((u) => u.id === otherUserId);
+    const resolvedName =
+      otherUserName ||
+      matchedDemoUser?.full_name ||
+      (otherUserId.startsWith('demo-user-')
+        ? otherUserId.replace('demo-user-', '').replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+        : otherUserId);
+
+    const otherUser = matchedDemoUser || {
+      id: otherUserId.startsWith('demo-') ? otherUserId : `demo-user-${cleanId}`,
+      full_name: resolvedName,
+      email: `${cleanId}@montra.app`,
+      currency: 'INR',
+    };
+
+    const newId = `demo-conv-${cleanId}`;
+    const newConv = {
+      id: newId,
+      type: 'direct',
+      title: otherUser.full_name,
+      created_by: currentUserId || DEMO_PROFILE.id,
+      last_message_at: new Date().toISOString(),
+      last_message_preview: 'Started conversation',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      other_participant: otherUser,
+      unread_count: 0,
+    };
+
+    set({
+      demoConversations: [newConv, ...state.demoConversations],
+      demoMessages: {
+        ...state.demoMessages,
+        [newId]: [],
+      },
+    });
+
+    return newId;
+  },
+
+  getOrCreateDemoGroupConversation: (groupName: string, groupId?: string) => {
+    const state = get();
+    const cleanId = (groupId || groupName).toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const existing = state.demoConversations.find(
+      (c) =>
+        c.type === 'group' &&
+        ((groupId && c.group_id === groupId) || c.title?.toLowerCase() === groupName.toLowerCase())
+    );
+    if (existing) return existing.id;
+
+    const newId = `demo-conv-group-${cleanId}`;
+    const newConv = {
+      id: newId,
+      type: 'group',
+      group_id: groupId || `demo-group-${cleanId}`,
+      title: groupName,
+      created_by: DEMO_PROFILE.id,
+      last_message_at: new Date().toISOString(),
+      last_message_preview: 'Started group chat',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      unread_count: 0,
+    };
+
+    set({
+      demoConversations: [newConv, ...state.demoConversations],
+      demoMessages: {
+        ...state.demoMessages,
+        [newId]: [],
+      },
+    });
+
+    return newId;
+  },
+
   resetDemoData: () =>
     set({
       demoProfile: { ...DEMO_PROFILE },
@@ -1114,5 +1380,7 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       demoGroups: DEMO_SPLIT_GROUPS.map((g) => ({ ...g, members: g.members ? [...g.members] : [] })),
       demoGroupExpenses: createInitialDemoGroupExpenses(),
       demoGroupSettlements: {},
+      demoConversations: [...DEMO_CONVERSATIONS],
+      demoMessages: { ...DEMO_MESSAGES },
     }),
 }));

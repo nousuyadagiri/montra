@@ -4,6 +4,7 @@ import { toMinorUnits } from '../utils/currency';
 import { getErrorMessage } from '../utils/errors';
 import { useSyncStore } from '../store/syncStore';
 import { authService } from './authService';
+import { chatService } from './chatService';
 import {
   computeExpenseSplits,
   calculateSettlements,
@@ -435,6 +436,30 @@ export const splitService = {
       }
 
       useSyncStore.getState().bumpSync();
+
+      // Post notification message to group chat
+      chatService.getOrCreateGroupConversation(groupId, userId)
+        .then((convId) => {
+          if (convId) {
+            chatService.sendMessage({
+              conversationId: convId,
+              senderId: userId,
+              type: 'expense_notification',
+              content: `Added shared expense "${input.title}" for ₹${input.amount}`,
+              metadata: {
+                expense_id: expense.id,
+                group_id: groupId,
+                title: input.title,
+                amount: input.amount,
+                currency: 'INR',
+                split_type: input.splitType,
+                paid_by_name: 'Group Member',
+              },
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+
       return expense;
     } catch (err) {
       await supabase.from('group_expenses').delete().eq('id', expense.id);
@@ -520,6 +545,35 @@ export const splitService = {
 
     if (error) throw error;
     useSyncStore.getState().bumpSync();
+
+    // Post settlement payment update to group chat
+    supabase.auth.getUser().then(({ data: authData }) => {
+      const currentUserId = authData.user?.id;
+      if (currentUserId) {
+        chatService.getOrCreateGroupConversation(groupId, currentUserId)
+          .then((convId) => {
+            if (convId) {
+              chatService.sendMessage({
+                conversationId: convId,
+                senderId: currentUserId,
+                type: 'payment_update',
+                content: `Recorded settlement of ₹${input.amount} via ${input.paymentMethod || 'UPI'}`,
+                metadata: {
+                  settlement_id: data.id,
+                  amount: input.amount,
+                  currency: 'INR',
+                  sender_id: input.payerId,
+                  recipient_id: input.payeeId,
+                  payment_method: input.paymentMethod || 'UPI',
+                  is_verified: true,
+                },
+              }).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+    }).catch(() => {});
+
     return data;
   },
 

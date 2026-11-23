@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   StyleSheet,
   Animated,
   Platform,
+  Dimensions,
+  LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../store/themeStore';
@@ -32,14 +34,51 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
   const isVisible = useTabBarStore((s) => s.isVisible);
   const [translateY] = useState(() => new Animated.Value(0));
 
+  // Compute container and tab dimensions for smooth active pill slide animation
+  const [containerWidth, setContainerWidth] = useState(() => {
+    const windowWidth = Dimensions.get('window').width;
+    return windowWidth > 0 ? windowWidth - 70 : 320;
+  });
+
+  const numTabs = state?.routes?.length || 5;
+  const innerWidth = Math.max(0, containerWidth - 12);
+  const tabWidth = innerWidth / numTabs;
+  const pillWidth = Math.max(48, Math.min(tabWidth - 4, 60));
+  const pillHeight = 50;
+  const targetX = 5 + state.index * tabWidth + (tabWidth - pillWidth) / 2;
+
+  const [animatedX] = useState(() => new Animated.Value(targetX));
+  const prevIndexRef = useRef(state.index);
+
   useEffect(() => {
     Animated.spring(translateY, {
       toValue: isVisible ? 0 : 130,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       tension: 65,
       friction: 11,
     }).start();
   }, [isVisible, translateY]);
+
+  useEffect(() => {
+    if (prevIndexRef.current === state.index) {
+      animatedX.setValue(targetX);
+    } else {
+      prevIndexRef.current = state.index;
+      Animated.spring(animatedX, {
+        toValue: targetX,
+        useNativeDriver: Platform.OS !== 'web',
+        tension: 68,
+        friction: 10,
+      }).start();
+    }
+  }, [state.index, targetX, animatedX]);
+
+  const handleContainerLayout = (e: LayoutChangeEvent) => {
+    const width = e.nativeEvent.layout.width;
+    if (width > 0 && Math.abs(width - containerWidth) > 0.5) {
+      setContainerWidth(width);
+    }
+  };
 
   // Floating bottom elevation close to navigation bar without excessive gap
   const bottomInset = insets.bottom;
@@ -53,6 +92,7 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
   return (
     <Animated.View
       pointerEvents={isVisible ? 'auto' : 'none'}
+      onLayout={handleContainerLayout}
       style={[
         styles.floatingContainer,
         {
@@ -68,6 +108,20 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
         isDark ? styles.darkShadow : styles.lightShadow,
       ]}
     >
+      {/* Smooth animated sliding active indicator pill */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.slidingPill,
+          {
+            backgroundColor: activePillBg,
+            width: pillWidth,
+            height: pillHeight,
+            transform: [{ translateX: animatedX }],
+          },
+        ]}
+      />
+
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
@@ -130,16 +184,7 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
             activeOpacity={0.7}
             style={styles.tabButton}
           >
-            <View
-              style={[
-                styles.tabPill,
-                isFocused && {
-                  backgroundColor: activePillBg,
-                  borderRadius: 32,
-                  gap: 0
-                },
-              ]}
-            >
+            <View style={styles.tabPill}>
               {options.tabBarIcon
                 ? options.tabBarIcon({
                     focused: isFocused,
@@ -170,9 +215,9 @@ export const FloatingTabBar: React.FC<FloatingTabBarProps> = ({
 const styles = StyleSheet.create({
   floatingContainer: {
     position: 'absolute',
-    left: 16,
-    right: 16,
-    height: 60,
+    left: 35,
+    right: 35,
+    height: 62,
     borderRadius: 30, // 50% border radius of 60px container height
     borderWidth: 1,
     flexDirection: 'row',
@@ -180,6 +225,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 6,
     zIndex: 999,
+  },
+  slidingPill: {
+    position: 'absolute',
+    top: 5,
+    left: 0,
+    borderRadius: 26,
+    zIndex: 0,
   },
   lightShadow: {
     shadowColor: '#000',
@@ -200,14 +252,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
+    zIndex: 1,
   },
   tabPill: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 9999, // 50% border radius (capsule/pill)
-    minWidth: 60,
+    paddingHorizontal: 6,
     gap: 1,
   },
   tabLabel: {

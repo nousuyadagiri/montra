@@ -194,9 +194,141 @@ export interface AppNotification {
   user_id: string;
   title: string;
   body: string;
-  type: 'budget' | 'salary' | 'goal' | 'split' | 'system';
+  type: 'budget' | 'salary' | 'goal' | 'split' | 'system' | 'chat';
   is_read: boolean;
   data?: any;
   created_at: string;
 }
+
+// ====================================================================
+// CHAT & MONEY CONVERSATION SYSTEM TYPES
+// ====================================================================
+
+export type ConversationType = 'direct' | 'group';
+
+export type MessageType =
+  | 'text'
+  | 'money_request'
+  | 'payment_update'
+  | 'expense_notification'
+  | 'system';
+
+export type MoneyRequestStatus = 'pending' | 'accepted' | 'declined' | 'paid';
+
+export interface MoneyRequestMetadata {
+  request_id?: string;
+  amount: number;
+  currency: SupportedCurrency | string;
+  status: MoneyRequestStatus;
+  requester_id: string;
+  recipient_id: string;
+  requester_name?: string;
+  recipient_name?: string;
+  related_expense_id?: string | null;
+  related_settlement_id?: string | null;
+  notes?: string | null;
+}
+
+export interface PaymentUpdateMetadata {
+  amount: number;
+  currency: SupportedCurrency | string;
+  sender_id: string;
+  recipient_id?: string;
+  sender_name?: string;
+  recipient_name?: string;
+  payment_method?: string;
+  settlement_id?: string | null;
+  notes?: string | null;
+  is_verified?: boolean;
+}
+
+export interface ExpenseNotificationMetadata {
+  expense_id: string;
+  group_id: string;
+  title: string;
+  amount: number;
+  currency: SupportedCurrency | string;
+  split_type: string;
+  paid_by_name: string;
+  category?: string;
+  created_by_name?: string;
+}
+
+export interface SystemMessageMetadata {
+  action: string;
+  details?: any;
+}
+
+export type MessageMetadata =
+  | MoneyRequestMetadata
+  | PaymentUpdateMetadata
+  | ExpenseNotificationMetadata
+  | SystemMessageMetadata
+  | Record<string, any>;
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  message_type: MessageType;
+  content: string;
+  metadata: MessageMetadata;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  sender?: Profile;
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+}
+
+export interface ConversationParticipant {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  joined_at: string;
+  last_read_at: string;
+  is_muted: boolean;
+  role: 'admin' | 'member';
+  profile?: Profile;
+}
+
+export interface Conversation {
+  id: string;
+  type: ConversationType;
+  group_id?: string | null;
+  title?: string | null;
+  created_by?: string | null;
+  last_message_at: string;
+  last_message_preview?: string | null;
+  created_at: string;
+  updated_at: string;
+  participants?: ConversationParticipant[];
+  other_participant?: Profile;
+  group?: ExpenseGroup;
+  unread_count?: number;
+}
+
+export interface MoneyRequest {
+  id: string;
+  conversation_id: string;
+  message_id?: string | null;
+  requester_id: string;
+  recipient_id: string;
+  amount: number;
+  currency: SupportedCurrency | string;
+  status: MoneyRequestStatus;
+  related_expense_id?: string | null;
+  related_settlement_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  requester?: Profile;
+  recipient?: Profile;
+}
+
+export interface UserPresence {
+  user_id: string;
+  last_seen_at: string;
+  is_online: boolean;
+}
+
 

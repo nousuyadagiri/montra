@@ -8,12 +8,14 @@ export interface ToastItem {
   title?: string;
   message: string;
   durationMs: number;
+  onPress?: () => void;
+  avatarInitials?: string;
 }
 
 interface ToastState {
   current: ToastItem | null;
   queue: ToastItem[];
-  show: (item: Omit<ToastItem, 'id' | 'durationMs'> & { durationMs?: number }) => void;
+  show: (item: Omit<ToastItem, 'id' | 'durationMs'> & { durationMs?: number; onPress?: () => void; avatarInitials?: string }) => void;
   dismiss: (id?: string) => void;
 }
 
@@ -23,7 +25,7 @@ export const useToastStore = create<ToastState>((set, get) => ({
   current: null,
   queue: [],
 
-  show: ({ variant, title, message, durationMs }) => {
+  show: ({ variant, title, message, durationMs, onPress, avatarInitials }) => {
     const cleanMessage = message?.trim();
     if (!cleanMessage) return;
 
@@ -33,6 +35,8 @@ export const useToastStore = create<ToastState>((set, get) => ({
       title,
       message: cleanMessage,
       durationMs: durationMs ?? (variant === 'error' ? 4200 : 3000),
+      onPress,
+      avatarInitials,
     };
 
     const { current, queue } = get();
@@ -72,6 +76,14 @@ export const toast = {
     useToastStore.getState().show({ variant: 'warning', title, message }),
   info: (message: string, title?: string) =>
     useToastStore.getState().show({ variant: 'info', title, message }),
+  chat: (options: { title: string; message: string; onPress?: () => void; durationMs?: number }) =>
+    useToastStore.getState().show({
+      variant: 'info',
+      title: options.title,
+      message: options.message,
+      onPress: options.onPress,
+      durationMs: options.durationMs ?? 4500,
+    }),
   dismiss: (id?: string) => useToastStore.getState().dismiss(id),
 };
 

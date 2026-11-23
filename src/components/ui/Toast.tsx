@@ -7,6 +7,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Sparkles,
+  MessageSquare,
   X,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../store/themeStore';
@@ -57,7 +58,7 @@ export const ToastHost: React.FC = () => {
     info: {
       accent: colors.primary || '#6366F1',
       iconBg: isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.12)',
-      Icon: Sparkles,
+      Icon: current.onPress ? MessageSquare : Sparkles,
     },
   };
 
@@ -87,7 +88,12 @@ export const ToastHost: React.FC = () => {
         ]}
       >
         <Pressable
-          onPress={() => dismiss(current.id)}
+          onPress={() => {
+            if (current.onPress) {
+              current.onPress();
+            }
+            dismiss(current.id);
+          }}
           style={[
             styles.pill,
             {

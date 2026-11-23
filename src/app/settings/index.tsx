@@ -52,40 +52,64 @@ import {
 const QUICK_SALARY_PRESETS = [5000, 10000, 25000];
 const QUICK_PAYDAYS = [1, 5, 10, 25, 30];
 
+const ALLOCATION_PALETTES = {
+  needs: {
+    accent: '#38BDF8', // Soft Sky Blue
+    bg: 'rgba(56, 189, 248, 0.12)',
+    pillBg: 'rgba(56, 189, 248, 0.16)',
+    groupName: 'Needs (50%)',
+    label: 'Needs',
+  },
+  savings: {
+    accent: '#34D399', // Soft Mint
+    bg: 'rgba(52, 211, 153, 0.12)',
+    pillBg: 'rgba(52, 211, 153, 0.16)',
+    groupName: 'Savings (30%)',
+    label: 'Savings',
+  },
+  wants: {
+    accent: '#A78BFA', // Soft Iris/Lavender
+    bg: 'rgba(167, 139, 250, 0.12)',
+    pillBg: 'rgba(167, 139, 250, 0.16)',
+    groupName: 'Wants (20%)',
+    label: 'Wants',
+  },
+};
+
 const getAllocationIcon = (category: string) => {
   const cat = (category || '').toLowerCase();
   if (cat.includes('rent') || cat.includes('housing')) {
-    return { Icon: Home, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)', group: 'Needs (50%)' };
+    return { Icon: Home, ...ALLOCATION_PALETTES.needs };
   }
   if (cat.includes('food') || cat.includes('grocer')) {
-    return { Icon: Utensils, color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)', group: 'Needs (50%)' };
+    return { Icon: Utensils, ...ALLOCATION_PALETTES.needs };
   }
   if (cat.includes('transport')) {
-    return { Icon: Car, color: '#6366F1', bg: 'rgba(99, 102, 241, 0.12)', group: 'Needs (50%)' };
+    return { Icon: Car, ...ALLOCATION_PALETTES.needs };
   }
   if (cat.includes('saving')) {
-    return { Icon: PiggyBank, color: '#059669', bg: 'rgba(5, 150, 105, 0.12)', group: 'Savings (30%)' };
+    return { Icon: PiggyBank, ...ALLOCATION_PALETTES.savings };
   }
   if (cat.includes('invest')) {
-    return { Icon: TrendingUp, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', group: 'Savings (30%)' };
+    return { Icon: TrendingUp, ...ALLOCATION_PALETTES.savings };
   }
   if (cat.includes('shop') || cat.includes('leisure')) {
-    return { Icon: ShoppingBag, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)', group: 'Wants (20%)' };
+    return { Icon: ShoppingBag, ...ALLOCATION_PALETTES.wants };
   }
-  return { Icon: ShieldCheck, color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)', group: 'Savings (30%)' };
+  return { Icon: ShieldCheck, ...ALLOCATION_PALETTES.savings };
 };
 
 const getAccountIcon = (type: string) => {
   switch (type) {
     case 'cash':
-      return { Icon: Banknote, color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' };
+      return { Icon: Banknote, color: '#34D399', bg: 'rgba(52, 211, 153, 0.12)' };
     case 'credit':
-      return { Icon: CreditCard, color: '#EC4899', bg: 'rgba(236, 72, 153, 0.12)' };
+      return { Icon: CreditCard, color: '#F472B6', bg: 'rgba(244, 114, 182, 0.12)' };
     case 'wallet':
-      return { Icon: Wallet, color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' };
+      return { Icon: Wallet, color: '#A78BFA', bg: 'rgba(167, 139, 250, 0.12)' };
     case 'bank':
     default:
-      return { Icon: Building, color: '#3B82F6', bg: 'rgba(59, 130, 246, 0.12)' };
+      return { Icon: Building, color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.12)' };
   }
 };
 
@@ -379,10 +403,10 @@ export default function SettingsScreen() {
             style={[
               styles.heroCard,
               {
-                backgroundColor: colors.surface,
-                borderColor: isDark ? colors.border : colors.borderLight,
+                backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
               },
-              !isDark ? Shadows.md : undefined,
+              !isDark ? Shadows.sm : undefined,
             ]}
           >
             {/* Take-Home Salary Input with Presets */}
@@ -396,7 +420,7 @@ export default function SettingsScreen() {
                 keyboardType="decimal-pad"
                 value={salaryStr}
                 onChangeText={setSalaryStr}
-                inputStyle={{ fontSize: 24, fontWeight: '700', color: colors.mainText }}
+                inputStyle={{ fontSize: 22, fontWeight: '700', color: colors.mainText }}
                 containerStyle={{ marginBottom: Spacing.xs }}
               />
 
@@ -410,8 +434,8 @@ export default function SettingsScreen() {
                     style={[
                       styles.presetChip,
                       {
-                        backgroundColor: isDark ? colors.elevatedSurface : colors.background,
-                        borderColor: isDark ? colors.border : colors.borderLight,
+                        backgroundColor: colors.primaryMuted,
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                       },
                     ]}
                   >
@@ -426,7 +450,7 @@ export default function SettingsScreen() {
             {/* Payday Selection Strip */}
             <View style={styles.paydaySection}>
               <View style={styles.paydayLabelRow}>
-                <Calendar size={14} color={colors.primary} />
+                <Calendar size={13} color={colors.primary} />
                 <Text variant="xs" weight="semibold" color="secondary" style={{ marginLeft: 6 }}>
                   Salary Credit Day of Month (1 - 31)
                 </Text>
@@ -443,8 +467,12 @@ export default function SettingsScreen() {
                       style={[
                         styles.paydayChip,
                         {
-                          backgroundColor: isSelected ? colors.primary : isDark ? colors.elevatedSurface : colors.background,
-                          borderColor: isSelected ? colors.primary : colors.borderLight,
+                          backgroundColor: isSelected
+                            ? colors.primary
+                            : isDark
+                            ? 'rgba(255, 255, 255, 0.05)'
+                            : '#F4F5F7',
+                          borderColor: isSelected ? colors.primary : 'transparent',
                         },
                       ]}
                     >
@@ -469,8 +497,8 @@ export default function SettingsScreen() {
                 activeOpacity={0.8}
                 style={[styles.saveSalaryBtn, { backgroundColor: colors.primary }]}
               >
-                <Check size={16} color={colors.onPrimary} strokeWidth={2.5} />
-                <Text variant="sm" weight="bold" style={{ color: colors.onPrimary, marginLeft: 6 }}>
+                <Check size={15} color={colors.onPrimary} strokeWidth={2.5} />
+                <Text variant="xs" weight="bold" style={{ color: colors.onPrimary, marginLeft: 6 }}>
                   {savingSalary ? 'Saving...' : 'Save Salary'}
                 </Text>
               </TouchableOpacity>
@@ -481,13 +509,13 @@ export default function SettingsScreen() {
                 style={[
                   styles.recordCreditBtn,
                   {
-                    backgroundColor: isDark ? colors.elevatedSurface : colors.background,
-                    borderColor: isDark ? colors.border : colors.borderLight,
+                    backgroundColor: isDark ? colors.elevatedSurface : '#F4F5F7',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                   },
                 ]}
               >
-                <ArrowDownLeft size={16} color={colors.primary} strokeWidth={2.2} />
-                <Text variant="sm" weight="bold" style={{ color: colors.primary, marginLeft: 6 }}>
+                <ArrowDownLeft size={15} color={colors.primary} strokeWidth={2.2} />
+                <Text variant="xs" weight="bold" style={{ color: colors.primary, marginLeft: 6 }}>
                   Record Credit Now
                 </Text>
               </TouchableOpacity>
@@ -511,62 +539,103 @@ export default function SettingsScreen() {
                 style={[
                   styles.allocationCard,
                   {
-                    backgroundColor: colors.surface,
-                    borderColor: isDark ? colors.border : colors.borderLight,
+                    backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                   },
                   !isDark ? Shadows.sm : undefined,
                 ]}
               >
                 {/* Visual Ratio Progress Bar */}
-                <View style={styles.ratioBarContainer}>
-                  <View style={[styles.ratioBarSegment, { flex: 5, backgroundColor: '#3B82F6' }]} />
-                  <View style={[styles.ratioBarSegment, { flex: 3, backgroundColor: '#10B981' }]} />
-                  <View style={[styles.ratioBarSegment, { flex: 2, backgroundColor: '#8B5CF6' }]} />
+                <View
+                  style={[
+                    styles.ratioBarContainer,
+                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' },
+                  ]}
+                >
+                  <View style={[styles.ratioBarSegment, { flex: 5, backgroundColor: ALLOCATION_PALETTES.needs.accent }]} />
+                  <View style={[styles.ratioBarSegment, { flex: 3, backgroundColor: ALLOCATION_PALETTES.savings.accent }]} />
+                  <View style={[styles.ratioBarSegment, { flex: 2, backgroundColor: ALLOCATION_PALETTES.wants.accent }]} />
                 </View>
 
                 {/* Ratio Pillar Badges */}
                 <View style={styles.ratioPillarsRow}>
-                  <View style={styles.ratioPillarItem}>
-                    <View style={[styles.ratioDot, { backgroundColor: '#3B82F6' }]} />
-                    <View>
-                      <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText }}>
-                        Needs (50%)
-                      </Text>
-                      <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 1 }}>
-                        {formatCurrency(needsTotal, activeCurrency)}
+                  <View
+                    style={[
+                      styles.pillarCard,
+                      {
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(56, 189, 248, 0.06)',
+                        borderColor: isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(56, 189, 248, 0.14)',
+                      },
+                    ]}
+                  >
+                    <View style={styles.pillarHeader}>
+                      <View style={[styles.ratioDot, { backgroundColor: ALLOCATION_PALETTES.needs.accent }]} />
+                      <Text style={[styles.pillarBadgeText, { color: ALLOCATION_PALETTES.needs.accent }]}>
+                        50%
                       </Text>
                     </View>
+                    <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText, marginTop: 4 }}>
+                      Needs
+                    </Text>
+                    <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 2 }}>
+                      {formatCurrency(needsTotal, activeCurrency)}
+                    </Text>
                   </View>
 
-                  <View style={styles.ratioPillarItem}>
-                    <View style={[styles.ratioDot, { backgroundColor: '#10B981' }]} />
-                    <View>
-                      <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText }}>
-                        Savings (30%)
-                      </Text>
-                      <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 1 }}>
-                        {formatCurrency(savingsTotal, activeCurrency)}
+                  <View
+                    style={[
+                      styles.pillarCard,
+                      {
+                        backgroundColor: isDark ? 'rgba(52, 211, 153, 0.08)' : 'rgba(52, 211, 153, 0.06)',
+                        borderColor: isDark ? 'rgba(52, 211, 153, 0.18)' : 'rgba(52, 211, 153, 0.14)',
+                      },
+                    ]}
+                  >
+                    <View style={styles.pillarHeader}>
+                      <View style={[styles.ratioDot, { backgroundColor: ALLOCATION_PALETTES.savings.accent }]} />
+                      <Text style={[styles.pillarBadgeText, { color: ALLOCATION_PALETTES.savings.accent }]}>
+                        30%
                       </Text>
                     </View>
+                    <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText, marginTop: 4 }}>
+                      Savings
+                    </Text>
+                    <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 2 }}>
+                      {formatCurrency(savingsTotal, activeCurrency)}
+                    </Text>
                   </View>
 
-                  <View style={styles.ratioPillarItem}>
-                    <View style={[styles.ratioDot, { backgroundColor: '#8B5CF6' }]} />
-                    <View>
-                      <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText }}>
-                        Wants (20%)
-                      </Text>
-                      <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 1 }}>
-                        {formatCurrency(wantsTotal, activeCurrency)}
+                  <View
+                    style={[
+                      styles.pillarCard,
+                      {
+                        backgroundColor: isDark ? 'rgba(167, 139, 250, 0.08)' : 'rgba(167, 139, 250, 0.06)',
+                        borderColor: isDark ? 'rgba(167, 139, 250, 0.18)' : 'rgba(167, 139, 250, 0.14)',
+                      },
+                    ]}
+                  >
+                    <View style={styles.pillarHeader}>
+                      <View style={[styles.ratioDot, { backgroundColor: ALLOCATION_PALETTES.wants.accent }]} />
+                      <Text style={[styles.pillarBadgeText, { color: ALLOCATION_PALETTES.wants.accent }]}>
+                        20%
                       </Text>
                     </View>
+                    <Text variant="xs" weight="semibold" style={{ color: colors.secondaryText, marginTop: 4 }}>
+                      Wants
+                    </Text>
+                    <Text variant="xs" weight="bold" style={{ color: colors.mainText, marginTop: 2 }}>
+                      {formatCurrency(wantsTotal, activeCurrency)}
+                    </Text>
                   </View>
                 </View>
 
                 <View
                   style={[
                     styles.divider,
-                    { backgroundColor: isDark ? colors.border : colors.borderLight, marginVertical: Spacing.md },
+                    {
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+                      marginVertical: Spacing.md,
+                    },
                   ]}
                 />
 
@@ -576,17 +645,33 @@ export default function SettingsScreen() {
                     const cfg = getAllocationIcon(a.category);
                     const IconComp = cfg.Icon;
                     return (
-                      <View key={idx} style={styles.allocRow}>
-                        <View style={[styles.allocIconBox, { backgroundColor: cfg.bg }]}>
-                          <IconComp size={16} color={cfg.color} strokeWidth={2.2} />
+                      <View
+                        key={idx}
+                        style={[
+                          styles.allocRow,
+                          idx !== allocations.length - 1 && [
+                            styles.allocRowBorder,
+                            { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)' },
+                          ],
+                        ]}
+                      >
+                        <View style={[styles.allocIconCircle, { backgroundColor: cfg.bg }]}>
+                          <IconComp size={16} color={cfg.accent} strokeWidth={2.2} />
                         </View>
 
                         <View style={styles.allocDetailsCol}>
                           <View style={styles.allocTextRow}>
-                            <Text variant="sm" weight="bold" numberOfLines={1}>
-                              {a.category}
-                            </Text>
-                            <Text variant="sm" weight="extrabold" style={{ color: colors.mainText }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text variant="sm" weight="semibold" numberOfLines={1} style={{ color: colors.mainText }}>
+                                {a.category}
+                              </Text>
+                              <View style={[styles.allocPillarPill, { backgroundColor: cfg.pillBg }]}>
+                                <Text style={[styles.allocPillarPillText, { color: cfg.accent }]}>
+                                  {cfg.label}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text variant="sm" weight="bold" style={{ color: colors.mainText }}>
                               {formatCurrency(a.suggestedAmount, activeCurrency)}
                             </Text>
                           </View>
@@ -596,17 +681,20 @@ export default function SettingsScreen() {
                             <View
                               style={[
                                 styles.allocProgressBarTrack,
-                                { backgroundColor: isDark ? colors.elevatedSurface : colors.borderLight },
+                                { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)' },
                               ]}
                             >
                               <View
                                 style={[
                                   styles.allocProgressBarFill,
-                                  { width: `${Math.min(100, a.percentage * 3.5)}%`, backgroundColor: cfg.color },
+                                  {
+                                    width: `${Math.min(100, a.percentage * 3.5)}%`,
+                                    backgroundColor: cfg.accent,
+                                  },
                                 ]}
                               />
                             </View>
-                            <Text variant="xs" color="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                            <Text variant="xs" color="secondary" style={styles.allocPctText}>
                               {a.percentage}%
                             </Text>
                           </View>
@@ -739,27 +827,27 @@ export default function SettingsScreen() {
                     style={[
                       styles.accountCard,
                       {
-                        backgroundColor: colors.surface,
-                        borderColor: isDark ? colors.border : colors.borderLight,
+                        backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
                       },
                       !isDark ? Shadows.sm : undefined,
                     ]}
                   >
                     <View style={styles.accountCardRow}>
                       <View style={[styles.accIconBg, { backgroundColor: accIcon.bg }]}>
-                        <AccIconComp size={20} color={accIcon.color} strokeWidth={2.2} />
+                        <AccIconComp size={18} color={accIcon.color} strokeWidth={2.2} />
                       </View>
 
                       <View style={styles.accInfo}>
                         <View style={styles.accNameRow}>
-                          <Text variant="sm" weight="bold" numberOfLines={1}>
+                          <Text variant="sm" weight="bold" numberOfLines={1} style={{ color: colors.mainText }}>
                             {acc.name}
                           </Text>
                           {acc.is_default ? (
                             <Badge label="Primary" variant="primary" size="sm" />
                           ) : null}
                         </View>
-                        <Text variant="xs" color="secondary" style={{ textTransform: 'capitalize', marginTop: 1 }}>
+                        <Text variant="xs" color="secondary" style={{ textTransform: 'capitalize', marginTop: 2, fontSize: 11 }}>
                           {acc.type} Account
                         </Text>
                       </View>
@@ -777,8 +865,8 @@ export default function SettingsScreen() {
                               style={[
                                 styles.actionPillBtn,
                                 {
-                                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
-                                  borderColor: colors.borderLight,
+                                  backgroundColor: isDark ? colors.elevatedSurface : '#F4F5F7',
+                                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                                 },
                               ]}
                               accessibilityLabel="Set as primary"
@@ -793,8 +881,8 @@ export default function SettingsScreen() {
                             style={[
                               styles.actionPillBtn,
                               {
-                                backgroundColor: isDark ? colors.elevatedSurface : colors.background,
-                                borderColor: colors.borderLight,
+                                backgroundColor: isDark ? colors.elevatedSurface : '#F4F5F7',
+                                borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                               },
                             ]}
                             accessibilityLabel="Edit account"
@@ -809,8 +897,8 @@ export default function SettingsScreen() {
                               style={[
                                 styles.actionPillBtn,
                                 {
-                                  backgroundColor: isDark ? colors.elevatedSurface : colors.background,
-                                  borderColor: colors.borderLight,
+                                  backgroundColor: isDark ? colors.elevatedSurface : '#F4F5F7',
+                                  borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                                 },
                               ]}
                               accessibilityLabel="Delete account"
@@ -920,44 +1008,60 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   ratioBarContainer: {
-    height: 8,
+    height: 6,
     borderRadius: BorderRadius.full,
     flexDirection: 'row',
     overflow: 'hidden',
-    gap: 2,
+    gap: 3,
     marginBottom: Spacing.md,
   },
   ratioBarSegment: {
     height: '100%',
+    borderRadius: BorderRadius.full,
   },
   ratioPillarsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing.xs,
   },
-  ratioPillarItem: {
+  pillarCard: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  pillarHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+  },
+  pillarBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   ratioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   divider: {
     height: 1,
   },
   allocationsList: {
-    gap: Spacing.md,
+    gap: 0,
   },
   allocRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 10,
   },
-  allocIconBox: {
+  allocRowBorder: {
+    borderBottomWidth: 1,
+  },
+  allocIconCircle: {
     width: 36,
     height: 36,
-    borderRadius: BorderRadius.md,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
@@ -969,7 +1073,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 5,
+  },
+  allocPillarPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: BorderRadius.full,
+  },
+  allocPillarPillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   allocProgressRow: {
     flexDirection: 'row',
@@ -977,13 +1091,20 @@ const styles = StyleSheet.create({
   },
   allocProgressBarTrack: {
     flex: 1,
-    height: 5,
+    height: 4,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
   allocProgressBarFill: {
     height: '100%',
     borderRadius: BorderRadius.full,
+  },
+  allocPctText: {
+    fontSize: 10.5,
+    marginLeft: 8,
+    fontWeight: '500',
+    width: 28,
+    textAlign: 'right',
   },
   addAccountPillBtn: {
     flexDirection: 'row',
@@ -1033,7 +1154,7 @@ const styles = StyleSheet.create({
   accIconBg: {
     width: 40,
     height: 40,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
@@ -1056,9 +1177,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionPillBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: BorderRadius.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

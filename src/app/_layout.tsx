@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useThemeStore } from '../store/themeStore';
 import { useAuthStore } from '../store/authStore';
 import { ToastHost } from '../components/ui/Toast';
+import { useIncomingChatNotifications } from '../hooks/useIncomingChatNotifications';
 
 // Keep native splash visible until theme & auth hydration complete
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -28,6 +29,9 @@ export default function RootLayout() {
   const updateSystemScheme = useThemeStore((s) => s.updateSystemScheme);
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
   const [themeReady, setThemeReady] = useState(false);
+
+  // Global incoming real-time chat notification listener
+  useIncomingChatNotifications();
 
   useEffect(() => {
     Promise.resolve(loadPersistedTheme()).finally(() => setThemeReady(true));
@@ -99,6 +103,9 @@ export default function RootLayout() {
             />
             <Stack.Screen name="analytics/index" />
             <Stack.Screen name="settings/index" />
+            <Stack.Screen name="chat/index" />
+            <Stack.Screen name="chat/users" />
+            <Stack.Screen name="chat/[id]" />
           </Stack>
           <ToastHost />
         </View>
